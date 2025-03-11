@@ -64,10 +64,7 @@ export async function POST(req: NextRequest) {
 
     if (action === 'verify') {
       console.log('Verifying code...')
-      console.log('Stored codes:', global.verificationCodes)
-      
       const storedData = global.verificationCodes?.get(formattedPhone)
-      console.log('Stored data for phone:', storedData)
       
       if (!storedData || storedData.code !== code) {
         console.log('Invalid code. Expected:', storedData?.code, 'Got:', code)
@@ -75,11 +72,18 @@ export async function POST(req: NextRequest) {
       }
 
       try {
+        // Update the user's phone number in Firebase Auth
+        await adminAuth.updateUser(uid, {
+          phoneNumber: formattedPhone
+        })
+
+        console.log('Updated phone number in Auth')
+
         // Get next user ID
         const userId = await getNextUserId()
         console.log('Got next user ID:', userId)
 
-        // Create verification document
+        // Create verification document with phone number
         await db.collection('verification').doc(uid).set({
           verified: false,
           uid: uid,
@@ -111,12 +115,7 @@ export async function POST(req: NextRequest) {
       } catch (error) {
         console.error('Detailed verification error:', {
           error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined,
-          env: {
-            hasProjectId: !!process.env.FIREBASE_PROJECT_ID,
-            hasClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
-            hasPrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
-          }
+          stack: error instanceof Error ? error.stack : undefined
         })
 
         return NextResponse.json({ error: 'Failed to verify user' }, { status: 500 })
