@@ -303,161 +303,161 @@ export default function AdminPanel() {
         {/* Edit Modal */}
         {users.find(u => u.editing) && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className="relative bg-[#111] rounded-3xl p-8 max-w-md w-full my-8">
+            <div className="relative bg-[#111] rounded-3xl p-8 max-w-4xl w-full my-8">
               <h2 className="text-xl font-bold text-white mb-6">Edit User Details</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    User ID
-                  </label>
-                  <input
-                    type="number"
-                    value={editingUser.userId || ''}
-                    onChange={(e) => setEditingUser({...editingUser, userId: parseInt(e.target.value)})}
-                    className="w-full bg-[#222] text-white px-3 py-2 rounded"
-                  />
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      User ID
+                    </label>
+                    <input
+                      type="number"
+                      min="10000"
+                      value={editingUser.userId || ''}
+                      onChange={(e) => setEditingUser({
+                        ...editingUser, 
+                        userId: parseInt(e.target.value)
+                      })}
+                      className="w-full bg-[#222] text-white px-3 py-2 rounded"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Registration Date
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={editingUser.registrationDate ? new Date(editingUser.registrationDate).toISOString().slice(0, 16) : ''}
+                      onChange={(e) => setEditingUser({
+                        ...editingUser,
+                        registrationDate: e.target.value ? new Date(e.target.value).toISOString() : ''
+                      })}
+                      className="w-full bg-[#222] text-white px-3 py-2 rounded"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Personal Name / Company Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editingUser.displayName || ''}
+                      onChange={(e) => setEditingUser({...editingUser, displayName: e.target.value})}
+                      className="w-full bg-[#222] text-white px-3 py-2 rounded"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={editingUser.email || ''}
+                      onChange={(e) => setEditingUser({...editingUser, email: e.target.value})}
+                      className="w-full bg-[#222] text-white px-3 py-2 rounded"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Phone Number
+                    </label>
+                    <input
+                      type="text"
+                      value={editingUser.phoneNumber || ''}
+                      onChange={(e) => setEditingUser({...editingUser, phoneNumber: e.target.value})}
+                      className="w-full bg-[#222] text-white px-3 py-2 rounded"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Registration Date
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={editingUser.registrationDate ? new Date(editingUser.registrationDate).toISOString().slice(0, 16) : ''}
-                    onChange={(e) => setEditingUser({...editingUser, registrationDate: new Date(e.target.value).toISOString()})}
-                    className="w-full bg-[#222] text-white px-3 py-2 rounded"
-                  />
-                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Account Agent
+                    </label>
+                    <input
+                      type="text"
+                      value={editingUser.accountAgent || ''}
+                      onChange={(e) => setEditingUser({...editingUser, accountAgent: e.target.value})}
+                      className="w-full bg-[#222] text-white px-3 py-2 rounded"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Personal Name / Company Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editingUser.displayName || ''}
-                    onChange={(e) => setEditingUser({...editingUser, displayName: e.target.value})}
-                    className="w-full bg-[#222] text-white px-3 py-2 rounded"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Date of Birth
+                    </label>
+                    <input
+                      type="date"
+                      value={editingUser.dateOfBirth && editingUser.dateOfBirth !== 'N/A' 
+                        ? new Date(editingUser.dateOfBirth).toISOString().split('T')[0]
+                        : ''
+                      }
+                      onChange={(e) => setEditingUser({
+                        ...editingUser,
+                        dateOfBirth: e.target.value ? new Date(e.target.value).toISOString() : 'N/A'
+                      })}
+                      className="w-full bg-[#222] text-white px-3 py-2 rounded"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={editingUser.email || ''}
-                    onChange={(e) => setEditingUser({...editingUser, email: e.target.value})}
-                    className="w-full bg-[#222] text-white px-3 py-2 rounded"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Nationality / Based
+                    </label>
+                    <input
+                      type="text"
+                      value={editingUser.nationality || ''}
+                      onChange={(e) => setEditingUser({...editingUser, nationality: e.target.value})}
+                      className="w-full bg-[#222] text-white px-3 py-2 rounded"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Account Agent
-                  </label>
-                  <input
-                    type="text"
-                    value={editingUser.accountAgent || ''}
-                    onChange={(e) => setEditingUser({...editingUser, accountAgent: e.target.value})}
-                    className="w-full bg-[#222] text-white px-3 py-2 rounded"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Date of Birth
-                  </label>
-                  <input
-                    type="date"
-                    value={editingUser.dateOfBirth && editingUser.dateOfBirth !== 'N/A' 
-                      ? new Date(editingUser.dateOfBirth).toISOString().split('T')[0]
-                      : ''
-                    }
-                    onChange={(e) => setEditingUser({
-                      ...editingUser,
-                      dateOfBirth: e.target.value ? new Date(e.target.value).toISOString() : 'N/A'
-                    })}
-                    className="w-full bg-[#222] text-white px-3 py-2 rounded"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Security Level
+                    </label>
+                    <input
+                      type="text"
+                      value={editingUser.securityLevel || ''}
+                      onChange={(e) => setEditingUser({...editingUser, securityLevel: e.target.value})}
+                      className="w-full bg-[#222] text-white px-3 py-2 rounded"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Products
-                  </label>
-                  <input
-                    type="text"
-                    value={editingUser.products || ''}
-                    onChange={(e) => setEditingUser({...editingUser, products: e.target.value})}
-                    className="w-full bg-[#222] text-white px-3 py-2 rounded"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Documents
+                    </label>
+                    <input
+                      type="text"
+                      value={editingUser.documents || ''}
+                      onChange={(e) => setEditingUser({...editingUser, documents: e.target.value})}
+                      className="w-full bg-[#222] text-white px-3 py-2 rounded"
+                    />
+                  </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Nationality / Based
-                  </label>
-                  <input
-                    type="text"
-                    value={editingUser.nationality || ''}
-                    onChange={(e) => setEditingUser({...editingUser, nationality: e.target.value})}
-                    className="w-full bg-[#222] text-white px-3 py-2 rounded"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Security Level
-                  </label>
-                  <input
-                    type="text"
-                    value={editingUser.securityLevel || ''}
-                    onChange={(e) => setEditingUser({...editingUser, securityLevel: e.target.value})}
-                    className="w-full bg-[#222] text-white px-3 py-2 rounded"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Documents
-                  </label>
-                  <input
-                    type="text"
-                    value={editingUser.documents || ''}
-                    onChange={(e) => setEditingUser({...editingUser, documents: e.target.value})}
-                    className="w-full bg-[#222] text-white px-3 py-2 rounded"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Phone Number
-                  </label>
-                  <input
-                    type="text"
-                    value={editingUser.phoneNumber || ''}
-                    onChange={(e) => setEditingUser({...editingUser, phoneNumber: e.target.value})}
-                    className="w-full bg-[#222] text-white px-3 py-2 rounded"
-                  />
-                </div>
-
-                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-700">
-                  <button
-                    onClick={() => handleCancel(users.find(u => u.editing)?.id!)}
-                    className="px-4 py-2 bg-red-500 text-black rounded-full text-sm hover:bg-red-400 transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => handleSave(users.find(u => u.editing)?.id!)}
-                    className="px-4 py-2 bg-green-500 text-black rounded-full text-sm hover:bg-green-400 transition-all"
-                  >
-                    Save Changes
-                  </button>
-                </div>
+              <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-700">
+                <button
+                  onClick={() => handleCancel(users.find(u => u.editing)?.id!)}
+                  className="px-4 py-2 bg-red-500 text-black rounded-full text-sm hover:bg-red-400 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleSave(users.find(u => u.editing)?.id!)}
+                  className="px-4 py-2 bg-green-500 text-black rounded-full text-sm hover:bg-green-400 transition-all"
+                >
+                  Save Changes
+                </button>
               </div>
             </div>
           </div>

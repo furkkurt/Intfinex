@@ -8,6 +8,7 @@ import TradingViewChart from '@/components/TradingViewChart'
 import MarketTicker from '@/components/MarketTicker'
 import MarketEvents from '@/components/MarketEvents'
 import MarketTimeline from '@/components/MarketTimeline'
+import AuthenticatedLayout from '../../components/AuthenticatedLayout'
 
 export default function FinancialRoom() {
   const router = useRouter()
@@ -35,19 +36,19 @@ export default function FinancialRoom() {
 
   // Render financial room content for verified users
   return (
-    <main className="min-h-screen bg-black">
-      <Header />
-      <div className="py-8">
-        <MarketTicker />
-        <div className="max-w-6xl mx-auto px-4 mt-8">
-          <TradingViewChart />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
-            <MarketEvents />
-            <MarketTimeline />
+    <AuthenticatedLayout>
+      <div className="space-y-6">
+        <div className="py-8">
+          <MarketTicker />
+          <div className="max-w-6xl mx-auto px-4 mt-8">
+            <TradingViewChart />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+              <MarketEvents />
+              <MarketTimeline />
+            </div>
           </div>
         </div>
       </div>
-      <Footer />
-    </main>
+    </AuthenticatedLayout>
   )
 } 
