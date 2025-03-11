@@ -4,7 +4,7 @@ import { adminAuth } from '@/lib/firebase-admin'
 import { getFirestore } from 'firebase-admin/firestore'
 
 declare global {
-  var verificationCodes: Map<string, { code: string; timestamp: number }>;
+  var verificationCodes: Map<string, { code: string; timestamp: number; userData: { firstName: string; lastName: string; email: string } }>;
 }
 
 const client = twilio(
@@ -49,78 +49,29 @@ const getNextUserId = async () => {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { phoneNumber, action, code, firstName, lastName, email, uid } = body
+    const { phoneNumber, action, code, firstName, lastName, email } = body
 
-    console.log('=== API Request ===')
-    console.log('Action:', action)
-    console.log('Phone:', phoneNumber)
-    console.log('Code:', code)
-    console.log('IsLogin:', !!uid)
-    console.log('Firebase Admin Status:', !!adminAuth)
-
-    // Handle direct login
-    if (action === 'login') {
-      // Format phone number exactly as stored in Firebase
-      let formattedPhone = phoneNumber.replace(/\s+/g, '')
-        .replace(/[()-]/g, '')
-        .replace(/^00/, '+') // Replace leading 00 with +
-      
-      if (!formattedPhone.startsWith('+')) {
-        formattedPhone = `+${formattedPhone}`
-      }
-
-      console.log('Attempting login with phone:', formattedPhone)
-
-      try {
-        const userRecord = await adminAuth.getUserByPhoneNumber(formattedPhone)
-        console.log('Found user:', userRecord)
-        
-        const customToken = await adminAuth.createCustomToken(userRecord.uid)
-        console.log('Generated token for:', userRecord.uid)
-        
-        return NextResponse.json({
-          status: 'success',
-          customToken,
-          uid: userRecord.uid
-        })
-
-      } catch (error) {
-        console.error('Login error:', error)
-        // Log the exact error for debugging
-        console.log('Error details:', {
-          code: error instanceof Error ? (error as any).code : 'unknown',
-          message: error instanceof Error ? error.message : 'Unknown error',
-          phoneNumber: formattedPhone
-        })
-        
-        return NextResponse.json({
-          error: 'User not found',
-          details: 'Please register first',
-          debug: formattedPhone // This will help us see what number we're trying
-        }, { status: 400 })
-      }
+    // Format phone number consistently
+    let formattedPhone = phoneNumber.replace(/\s+/g, '').replace(/[()-]/g, '')
+    if (!formattedPhone.startsWith('+')) {
+      formattedPhone = `+${formattedPhone}`
     }
 
     if (action === 'send') {
-      let formattedPhone = phoneNumber.replace(/\s+/g, '').replace(/[()-]/g, '')
-      if (!formattedPhone.startsWith('+')) {
-        formattedPhone = `+${formattedPhone}`
-      }
-
       try {
         const verificationCode = generateVerificationCode()
-        console.log('Generated code:', verificationCode)
-
-        // Store the code
+        
+        // Store the code and user data for later
         global.verificationCodes = global.verificationCodes || new Map()
         global.verificationCodes.set(formattedPhone, {
           code: verificationCode,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          userData: { firstName, lastName, email } // Store user data temporarily
         })
 
         // Send SMS
         await client.messages.create({
-          body: `Your GunGroup verification code is: ${verificationCode}`,
+          body: `Your Intfinex verification code is: ${verificationCode}`,
           to: formattedPhone,
           from: process.env.TWILIO_PHONE_NUMBER
         })
@@ -133,30 +84,27 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'verify') {
-      let formattedPhone = phoneNumber.replace(/\s+/g, '').replace(/[()-]/g, '')
-      if (!formattedPhone.startsWith('+')) {
-        formattedPhone = `+${formattedPhone}`
-      }
-      
       const storedData = global.verificationCodes?.get(formattedPhone)
       
       if (!storedData || storedData.code !== code) {
-        return NextResponse.json({ 
-          error: 'Invalid verification code'
-        }, { status: 400 })
+        return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 })
       }
 
       try {
+        // Create the user in Firebase Auth
+        const userRecord = await adminAuth.createUser({
+          phoneNumber: formattedPhone,
+          email: storedData.userData.email,
+          displayName: `${storedData.userData.firstName} ${storedData.userData.lastName}`,
+        })
+
         // Get next user ID
         const userId = await getNextUserId()
 
-        // Get the user data from Firebase Auth
-        const userRecord = await adminAuth.getUser(uid)
-
-        // Create verification document with additional fields
-        await db.collection('verification').doc(uid).set({
+        // Create verification document
+        await db.collection('verification').doc(userRecord.uid).set({
           verified: false,
-          uid: uid,
+          uid: userRecord.uid,
           registrationDate: new Date().toISOString(),
           userId: userId,
           products: "Information",
@@ -165,19 +113,21 @@ export async function POST(req: NextRequest) {
           accountAgent: "N/A",
           dateOfBirth: "N/A",
           nationality: "N/A",
-          email: userRecord.email || "N/A",
-          displayName: userRecord.displayName || "N/A"
+          email: storedData.userData.email || "N/A",
+          displayName: `${storedData.userData.firstName} ${storedData.userData.lastName}`,
+          phoneNumber: formattedPhone
         })
 
-        // Generate a custom token
-        const customToken = await adminAuth.createCustomToken(uid)
+        // Generate custom token
+        const customToken = await adminAuth.createCustomToken(userRecord.uid)
         
-        // Clean up the verification code
+        // Clean up verification code and stored data
         global.verificationCodes.delete(formattedPhone)
 
         return NextResponse.json({ 
           status: 'success',
-          customToken
+          customToken,
+          uid: userRecord.uid
         })
       } catch (error) {
         console.error('Verification error:', error)
