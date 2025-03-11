@@ -4,7 +4,15 @@ import { adminAuth } from '@/lib/firebase-admin'
 import { getFirestore } from 'firebase-admin/firestore'
 
 declare global {
-  var verificationCodes: Map<string, { code: string; timestamp: number; userData: { firstName: string; lastName: string; email: string } }>;
+  var verificationCodes: Map<string, { 
+    code: string; 
+    timestamp: number; 
+    userData: { 
+      firstName: string; 
+      lastName: string; 
+      email: string 
+    } 
+  }>;
 }
 
 const client = twilio(
@@ -21,17 +29,14 @@ const generateVerificationCode = () => {
 // Add a counter for user IDs
 const getNextUserId = async () => {
   try {
-    // Delete existing counter if it exists (temporary fix)
     const counterRef = db.collection('counters').doc('users')
     const counterDoc = await counterRef.get()
     
-    // If counter doesn't exist or is less than 10000, set it to 10000
     if (!counterDoc.exists || (counterDoc.data()?.count || 0) < 10000) {
       await counterRef.set({ count: 10000 })
       return 10000
     }
     
-    // Get the next ID and update the counter
     const batch = db.batch()
     const newCount = counterDoc.data()!.count + 1
     batch.update(counterRef, { count: newCount })
@@ -40,7 +45,6 @@ const getNextUserId = async () => {
     return newCount
   } catch (error) {
     console.error('Error getting next user ID:', error)
-    // Fallback to 10000 if there's an error
     await db.collection('counters').doc('users').set({ count: 10000 })
     return 10000
   }
@@ -49,27 +53,101 @@ const getNextUserId = async () => {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { phoneNumber, action, code, firstName, lastName, email } = body
+    const { phoneNumber, action, code, firstName, lastName, email, uid } = body
 
-    // Format phone number consistently
+    console.log('Verify endpoint received:', { action, phoneNumber, code, uid })
+
     let formattedPhone = phoneNumber.replace(/\s+/g, '').replace(/[()-]/g, '')
     if (!formattedPhone.startsWith('+')) {
       formattedPhone = `+${formattedPhone}`
     }
 
+    if (action === 'verify') {
+      console.log('Verifying code...')
+      console.log('Stored codes:', global.verificationCodes)
+      
+      const storedData = global.verificationCodes?.get(formattedPhone)
+      console.log('Stored data for phone:', storedData)
+      
+      if (!storedData || storedData.code !== code) {
+        console.log('Invalid code. Expected:', storedData?.code, 'Got:', code)
+        return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 })
+      }
+
+      try {
+        // Get next user ID
+        const userId = await getNextUserId()
+        console.log('Got next user ID:', userId)
+
+        // Create verification document
+        await db.collection('verification').doc(uid).set({
+          verified: false,
+          uid: uid,
+          registrationDate: new Date().toISOString(),
+          userId: userId,
+          products: "Information",
+          securityLevel: "Password",
+          documents: "N/A",
+          accountAgent: "N/A",
+          dateOfBirth: "N/A",
+          nationality: "N/A",
+          email: storedData.userData.email || "N/A",
+          displayName: `${firstName} ${lastName}`,
+          phoneNumber: formattedPhone
+        })
+
+        console.log('Verification document created')
+
+        // Generate custom token
+        const customToken = await adminAuth.createCustomToken(uid)
+        
+        // Clean up verification code
+        global.verificationCodes.delete(formattedPhone)
+
+        return NextResponse.json({ 
+          status: 'success',
+          customToken
+        })
+      } catch (error) {
+        console.error('Detailed verification error:', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+          env: {
+            hasProjectId: !!process.env.FIREBASE_PROJECT_ID,
+            hasClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
+            hasPrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
+          }
+        })
+
+        return NextResponse.json({ error: 'Failed to verify user' }, { status: 500 })
+      }
+    }
+
     if (action === 'send') {
       try {
+        // Check if user already exists
+        try {
+          const existingUser = await adminAuth.getUserByPhoneNumber(formattedPhone)
+          if (existingUser) {
+            return NextResponse.json({ 
+              error: 'User already exists',
+              details: 'This phone number is already registered'
+            }, { status: 400 })
+          }
+        } catch (error) {
+          // User not found, which is what we want for registration
+        }
+
         const verificationCode = generateVerificationCode()
-        
-        // Store the code and user data for later
+        console.log('Generated verification code:', verificationCode)
+
         global.verificationCodes = global.verificationCodes || new Map()
         global.verificationCodes.set(formattedPhone, {
           code: verificationCode,
           timestamp: Date.now(),
-          userData: { firstName, lastName, email } // Store user data temporarily
+          userData: { firstName, lastName, email }
         })
 
-        // Send SMS
         await client.messages.create({
           body: `Your Intfinex verification code is: ${verificationCode}`,
           to: formattedPhone,
@@ -80,58 +158,6 @@ export async function POST(req: NextRequest) {
       } catch (error) {
         console.error('Send code error:', error)
         return NextResponse.json({ error: 'Failed to send verification code' }, { status: 500 })
-      }
-    }
-
-    if (action === 'verify') {
-      const storedData = global.verificationCodes?.get(formattedPhone)
-      
-      if (!storedData || storedData.code !== code) {
-        return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 })
-      }
-
-      try {
-        // Create the user in Firebase Auth
-        const userRecord = await adminAuth.createUser({
-          phoneNumber: formattedPhone,
-          email: storedData.userData.email,
-          displayName: `${storedData.userData.firstName} ${storedData.userData.lastName}`,
-        })
-
-        // Get next user ID
-        const userId = await getNextUserId()
-
-        // Create verification document
-        await db.collection('verification').doc(userRecord.uid).set({
-          verified: false,
-          uid: userRecord.uid,
-          registrationDate: new Date().toISOString(),
-          userId: userId,
-          products: "Information",
-          securityLevel: "Password",
-          documents: "N/A",
-          accountAgent: "N/A",
-          dateOfBirth: "N/A",
-          nationality: "N/A",
-          email: storedData.userData.email || "N/A",
-          displayName: `${storedData.userData.firstName} ${storedData.userData.lastName}`,
-          phoneNumber: formattedPhone
-        })
-
-        // Generate custom token
-        const customToken = await adminAuth.createCustomToken(userRecord.uid)
-        
-        // Clean up verification code and stored data
-        global.verificationCodes.delete(formattedPhone)
-
-        return NextResponse.json({ 
-          status: 'success',
-          customToken,
-          uid: userRecord.uid
-        })
-      } catch (error) {
-        console.error('Verification error:', error)
-        return NextResponse.json({ error: 'Failed to verify user' }, { status: 500 })
       }
     }
 

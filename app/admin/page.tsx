@@ -119,12 +119,18 @@ export default function AdminPanel() {
     try {
       const updates = {
         ...(editingUser.userId && { userId: editingUser.userId }),
-        ...(editingUser.registrationDate && { registrationDate: editingUser.registrationDate }),
+        ...(editingUser.registrationDate && { 
+          registrationDate: editingUser.registrationDate 
+        }),
         ...(editingUser.displayName && { displayName: editingUser.displayName }),
         ...(editingUser.email && { email: editingUser.email }),
         ...(editingUser.phoneNumber && { phoneNumber: editingUser.phoneNumber }),
         ...(editingUser.accountAgent && { accountAgent: editingUser.accountAgent }),
-        ...(editingUser.dateOfBirth && { dateOfBirth: editingUser.dateOfBirth }),
+        ...(editingUser.dateOfBirth && { 
+          dateOfBirth: editingUser.dateOfBirth === 'N/A' 
+            ? 'N/A' 
+            : new Date(editingUser.dateOfBirth).toISOString()
+        }),
         ...(editingUser.nationality && { nationality: editingUser.nationality }),
         ...(editingUser.documents && { documents: editingUser.documents }),
         ...(editingUser.products && { products: editingUser.products }),
@@ -142,11 +148,11 @@ export default function AdminPanel() {
         throw new Error(error.message || 'Failed to update user')
       }
 
-      setUsers(users.map(user => ({
-        ...user,
-        ...(user.id === userId ? { ...user, ...updates } : {}),
-        editing: false
-      })))
+      setUsers(users.map(user => 
+        user.id === userId 
+          ? { ...user, ...updates, editing: false }
+          : user
+      ))
 
       setEditingUser({})
     } catch (error) {
@@ -362,14 +368,17 @@ export default function AdminPanel() {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Date of Birth / Incorporate
+                    Date of Birth
                   </label>
                   <input
                     type="date"
-                    value={editingUser.dateOfBirth ? new Date(editingUser.dateOfBirth).toISOString().split('T')[0] : ''}
+                    value={editingUser.dateOfBirth && editingUser.dateOfBirth !== 'N/A' 
+                      ? new Date(editingUser.dateOfBirth).toISOString().split('T')[0]
+                      : ''
+                    }
                     onChange={(e) => setEditingUser({
-                      ...editingUser, 
-                      dateOfBirth: e.target.value ? new Date(e.target.value).toISOString() : ''
+                      ...editingUser,
+                      dateOfBirth: e.target.value ? new Date(e.target.value).toISOString() : 'N/A'
                     })}
                     className="w-full bg-[#222] text-white px-3 py-2 rounded"
                   />

@@ -87,25 +87,16 @@ export default function Register() {
         return
       }
 
-      // If validation passes, create user
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-      const user = userCredential.user
-
-      // Update profile with full name
-      await updateProfile(user, {
-        displayName: fullName
-      })
-
-      // Send verification code
+      // Send verification code first, without creating the user
       const response = await fetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'send',
           phoneNumber,
-          fullName,
-          email,
-          uid: user.uid
+          firstName: fullName.split(' ')[0],
+          lastName: fullName.split(' ')[1],
+          email
         })
       })
 
@@ -113,6 +104,14 @@ export default function Register() {
       if (data.error) {
         throw new Error(data.error)
       }
+
+      // Store credentials for later use after verification
+      sessionStorage.setItem('pendingRegistration', JSON.stringify({
+        email,
+        password,
+        fullName,
+        phoneNumber
+      }))
 
       setStep(2)
     } catch (error) {
@@ -125,35 +124,68 @@ export default function Register() {
     }
   }
 
-  const handleVerifyCode = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setErrors({})
-    setIsLoading(true)
-
+  const handleVerifyCode = async () => {
     try {
-      const response = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'verify',
-          phoneNumber,
-          code: verificationCode,
-          uid: auth.currentUser?.uid
-        })
-      })
+      setIsLoading(true)
+      setErrors({})
 
-      const data = await response.json()
-      if (data.error) {
-        throw new Error(data.error)
+      // Get stored registration data
+      const storedData = sessionStorage.getItem('pendingRegistration')
+      if (!storedData) {
+        throw new Error('Registration data not found')
       }
+      const { email, password, fullName, phoneNumber } = JSON.parse(storedData)
 
-      if (data.customToken) {
+      // Create user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      const user = userCredential.user
+
+      console.log('Created user:', user.uid)
+
+      try {
+        // Update profile with full name
+        await updateProfile(user, {
+          displayName: fullName
+        })
+
+        // Verify the code and complete registration
+        const response = await fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'verify',
+            phoneNumber,
+            code: verificationCode,
+            firstName: fullName.split(' ')[0],
+            lastName: fullName.split(' ')[1],
+            email,
+            uid: user.uid
+          }),
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to verify code')
+        }
+
+        // Clean up stored data
+        sessionStorage.removeItem('pendingRegistration')
+
+        // Sign in with the custom token
         await signInWithCustomToken(auth, data.customToken)
-        router.push('/')
+        router.push('/dashboard')
+      } catch (error) {
+        // If verification fails, delete the created user
+        await user.delete()
+        throw error
       }
     } catch (error) {
+      console.error('Verification error:', error)
       setErrors({
-        general: error instanceof Error ? error.message : 'Verification failed'
+        general: error instanceof Error ? error.message : 'Failed to verify code'
       })
     } finally {
       setIsLoading(false)
@@ -207,6 +239,23 @@ export default function Register() {
               </div>
 
               <div>
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-300">
+                  Phone Number
+                </label>
+                <PhoneInput
+                  country={'tr'}
+                  value={phoneNumber}
+                  onChange={setPhoneNumber}
+                  inputClass="!w-full !bg-[#222] !text-white !border-gray-700 text-white"
+                  buttonClass="!bg-[#222] !border-gray-700"
+                  dropdownClass="!bg-[#222] !text-white"
+                />
+                {errors.phoneNumber && (
+                  <p className="text-red-500 text-sm mt-1">{errors.phoneNumber}</p>
+                )}
+              </div>
+
+              <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-300">
                   Password
                 </label>
@@ -221,23 +270,6 @@ export default function Register() {
                 />
                 {errors.password && (
                   <p className="text-red-500 text-sm mt-1">{errors.password}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-300">
-                  Phone Number
-                </label>
-                <PhoneInput
-                  country={'tr'}
-                  value={phoneNumber}
-                  onChange={setPhoneNumber}
-                  inputClass="!w-full !bg-[#222] !text-white !border-gray-700 text-white"
-                  buttonClass="!bg-[#222] !border-gray-700"
-                  dropdownClass="!bg-[#222] !text-white"
-                />
-                {errors.phoneNumber && (
-                  <p className="text-red-500 text-sm mt-1">{errors.phoneNumber}</p>
                 )}
               </div>
 
@@ -258,21 +290,19 @@ export default function Register() {
               </div>
             </form>
           ) : (
-            <form onSubmit={handleVerifyCode} className="space-y-6">
+            <div className="space-y-6">
               <div>
-                <label htmlFor="code" className="block text-sm font-medium text-gray-300">
+                <label htmlFor="verificationCode" className="block text-sm font-medium text-gray-300">
                   Verification Code
                 </label>
-                <div className="mt-1">
-                  <input
-                    id="code"
-                    type="text"
-                    required
-                    value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value)}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[#00ffd5] focus:border-[#00ffd5] bg-[#1E1E1E] text-white sm:text-sm"
-                  />
-                </div>
+                <input
+                  type="text"
+                  id="verificationCode"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  className="mt-1 block w-full bg-[#222] border-gray-700 rounded-lg shadow-sm focus:ring-[#00ffd5] focus:border-[#00ffd5] text-white"
+                  required
+                />
               </div>
 
               {errors.general && (
@@ -283,14 +313,25 @@ export default function Register() {
 
               <div>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={handleVerifyCode}
                   disabled={isLoading}
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-black bg-[#00ffd5] hover:bg-[#00e6c0] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00ffd5] transition-all transform hover:scale-105 disabled:opacity-50"
+                  className="w-full py-3 px-4 text-black bg-[#00ffd5] hover:bg-[#00e6c0] rounded-full transition-all transform hover:scale-105 disabled:opacity-50"
                 >
                   {isLoading ? 'Verifying...' : 'Complete Registration'}
                 </button>
               </div>
-            </form>
+
+              <div className="flex justify-between">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Back
+                </button>
+              </div>
+            </div>
           )}
 
           <div className="mt-6 grid grid-cols-2 gap-3">
