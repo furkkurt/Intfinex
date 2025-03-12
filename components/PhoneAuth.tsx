@@ -15,6 +15,7 @@ export default function PhoneAuth() {
   const [verificationId, setVerificationId] = useState<ConfirmationResult | null>(null)
   const [error, setError] = useState('')
   const router = useRouter()
+  const [verifying, setVerifying] = useState(false)
 
   useEffect(() => {
     if (!window.recaptchaVerifier) {
@@ -78,11 +79,50 @@ export default function PhoneAuth() {
       if (!verificationId) {
         throw new Error('No verification ID found')
       }
-      await verificationId.confirm(verificationCode)
-      router.push('/dashboard')
+      await confirmCode()
     } catch (err) {
       const firebaseError = err as FirebaseError
       setError(firebaseError.message)
+    }
+  }
+
+  const confirmCode = async () => {
+    try {
+      setVerifying(true)
+      
+      console.log('Confirming verification code...')
+      
+      if (!verificationId) {
+        throw new Error('No verification ID found')
+      }
+      
+      // Try to confirm the verification code
+      await verificationId.confirm(verificationCode)
+      
+      console.log('SMS verification successful!')
+      
+      // Instead of updating Firestore directly, call our API endpoint
+      const response = await fetch('/api/auth/complete-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uid: auth.currentUser?.uid
+        }),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to complete verification');
+      }
+      
+      setVerifying(false)
+      router.push('/dashboard')
+    } catch (error) {
+      console.error('Error verifying code:', error)
+      setError('Invalid verification code')
+      setVerifying(false)
     }
   }
 

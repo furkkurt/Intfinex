@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import twilio from 'twilio'
 import { adminAuth } from '@/lib/firebase-admin'
 import { getFirestore } from 'firebase-admin/firestore'
+import { adminDb } from '@/lib/firebase-admin'
 
 declare global {
   var verificationCodes: Map<string, { 
@@ -162,6 +163,41 @@ export async function POST(req: NextRequest) {
       } catch (error) {
         console.error('Send code error:', error)
         return NextResponse.json({ error: 'Failed to send verification code' }, { status: 500 })
+      }
+    }
+
+    if (action === 'verify-status') {
+      try {
+        const { uid } = body
+        
+        if (!uid) {
+          return NextResponse.json({ error: 'Missing UID' }, { status: 400 })
+        }
+        
+        console.log('Verification request for uid:', uid)
+        
+        // Check the document before update
+        const beforeDoc = await adminDb.collection('verification').doc(uid).get()
+        console.log('Before verification update:', beforeDoc.exists ? beforeDoc.data() : 'No document')
+        
+        // This might be the issue - setting verified to true automatically
+        // Let's log this operation explicitly
+        console.log('⚠️ ATTENTION: Setting verified status for user:', uid)
+        
+        await adminDb.collection('verification').doc(uid).update({
+          verified: false,  // Force this to be false instead of true
+          phoneVerified: true,
+          phoneVerifiedAt: new Date().toISOString()
+        })
+        
+        // Check after update
+        const afterDoc = await adminDb.collection('verification').doc(uid).get()
+        console.log('After verification update:', afterDoc.exists ? afterDoc.data() : 'No document')
+        
+        return NextResponse.json({ success: true })
+      } catch (error) {
+        console.error('Error in verification process:', error)
+        return NextResponse.json({ error: 'Verification failed' }, { status: 500 })
       }
     }
 

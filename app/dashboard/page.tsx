@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { auth } from '@/firebase/config'
-import { getFirestore, doc, onSnapshot } from 'firebase/firestore'
+import { getFirestore, doc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore'
 import AuthenticatedLayout from '../../components/AuthenticatedLayout'
 import { useVerificationStatus } from '@/hooks/useVerificationStatus'
 
@@ -42,7 +42,7 @@ function Dashboard() {
               dateOfBirth: data.dateOfBirth,
               products: data.products,
               email: user.email,
-              phoneNumber: user.phoneNumber,
+              phoneNumber: data.phoneNumber || 'N/A',
               registrationDate: data.registrationDate,
               documents: data.documents,
               securityLevel: data.securityLevel,
@@ -56,6 +56,44 @@ function Dashboard() {
     })
     return () => unsubscribe()
   }, [])
+
+  useEffect(() => {
+    const ensureVerifiedIsFalse = async () => {
+      const user = auth.currentUser
+      if (user) {
+        try {
+          const db = getFirestore()
+          const userDocRef = doc(db, 'verification', user.uid)
+          
+          // Check current value
+          const docSnap = await getDoc(userDocRef)
+          
+          if (docSnap.exists() && docSnap.data().verified === true) {
+            console.log('Found verified=true for new user, correcting...')
+            
+            // Use our server-side API to fix it with admin privileges
+            const response = await fetch('/api/auth/fix-verified-status', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ uid: user.uid }),
+            })
+            
+            if (response.ok) {
+              console.log('Successfully reset verified status to false')
+            } else {
+              console.error('Failed to reset verified status')
+            }
+          }
+        } catch (error) {
+          console.error('Error ensuring verified status:', error)
+        }
+      }
+    }
+    
+    ensureVerifiedIsFalse()
+  }, []) // This will run once when the dashboard mounts
 
   const handleSubmitTicket = (e: React.FormEvent) => {
     e.preventDefault()

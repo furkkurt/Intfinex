@@ -162,8 +162,22 @@ export default function Register() {
         registrationDate: new Date().toISOString().split('T')[0],
         documents: 'N/A',
         securityLevel: 'Password',
-        verified: false // Set to false by default
+        verified: false,
       })
+
+      // Add logging right after setting the document
+      console.log('User document created with verified=false')
+
+      // Then verify the document was created correctly
+      const docRef = doc(db, 'verification', user.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        console.log("Document data:", docSnap.data());
+        // Log specifically the verified field
+        console.log("Verified status:", docSnap.data().verified);
+      } else {
+        console.log("No such document!");
+      }
 
       // Send email verification
       await sendEmailVerification(user)

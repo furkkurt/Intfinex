@@ -22,6 +22,8 @@ interface User {
   [key: string]: any // For other fields
 }
 
+const ADMIN_PASSWORD = '123456' // Simple hardcoded password
+
 export default function AdminPanel() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,10 +32,23 @@ export default function AdminPanel() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [editFormData, setEditFormData] = useState<Partial<User>>({})
   
+  // Auth state
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [password, setPassword] = useState('')
+  const [authError, setAuthError] = useState('')
+  
   const db = getFirestore();
 
   useEffect(() => {
     fetchUsers()
+  }, [])
+
+  // If the user has previously authenticated in this session, check local storage
+  useEffect(() => {
+    const adminAuth = localStorage.getItem('adminAuth')
+    if (adminAuth === 'true') {
+      setIsAuthenticated(true)
+    }
   }, [])
 
   const fetchUsers = async () => {
@@ -168,11 +183,72 @@ export default function AdminPanel() {
     }
   }
 
+  const handleLogin = (e) => {
+    e.preventDefault()
+    if (password === ADMIN_PASSWORD) {
+      setIsAuthenticated(true)
+      setAuthError('')
+      localStorage.setItem('adminAuth', 'true')
+    } else {
+      setAuthError('Invalid password')
+    }
+  }
+  
+  const handleLogout = () => {
+    setIsAuthenticated(false)
+    localStorage.removeItem('adminAuth')
+  }
+
+  // Instead of directly returning the admin panel, now we check auth first
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-black">
+        <Header />
+        <div className="max-w-md mx-auto mt-20 p-6 bg-[#111] rounded-lg">
+          <h1 className="text-2xl font-bold text-white mb-6">Admin Login</h1>
+          <form onSubmit={handleLogin}>
+            <div className="mb-4">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300">
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1 block w-full bg-[#222] border-gray-700 rounded-lg shadow-sm focus:ring-[#00ffd5] focus:border-[#00ffd5] text-white"
+                required
+              />
+            </div>
+            {authError && (
+              <p className="text-red-500 text-sm mb-4">{authError}</p>
+            )}
+            <button
+              type="submit"
+              className="w-full bg-[#00ffd5] hover:bg-[#00e6c0] text-black font-semibold py-2 px-4 rounded"
+            >
+              Login
+            </button>
+          </form>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-black">
       <Header />
-      <div className="max-w-6xl mx-auto px-4 py-12">
-        <h1 className="text-3xl font-bold text-white mb-8">User Management</h1>
+      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-white">User Management</h1>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+          >
+            Logout
+          </button>
+        </div>
         
         {error && (
           <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 mb-6 rounded-lg">

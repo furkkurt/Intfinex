@@ -15,7 +15,9 @@ export function useVerificationStatus() {
         const verificationDoc = doc(db, 'verification', user.uid)
         const unsubscribeDoc = onSnapshot(verificationDoc, (doc) => {
           if (doc.exists()) {
-            setIsVerified(doc.data()?.verified ?? false)
+            // Read the verified status from the document data
+            const data = doc.data()
+            setIsVerified(data?.verified === true)
           } else {
             setIsVerified(false)
           }

@@ -5,8 +5,10 @@ export async function POST(req: NextRequest) {
   try {
     const { userId, verified } = await req.json()
 
+    console.log('AdminPanel: Setting verified status for user:', userId, 'to:', verified)
+
     if (!userId) {
-      return NextResponse.json({ error: 'Missing user ID' }, { status: 400 })
+      return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
     }
 
     console.log('Admin credentials:', {
@@ -15,27 +17,27 @@ export async function POST(req: NextRequest) {
       privateKeyLength: process.env.FIREBASE_PRIVATE_KEY?.length
     })
 
-    const userRef = adminDb.collection('verification').doc(userId)
-    await userRef.update({
-      verified: verified,
-      verifiedAt: verified ? new Date().toISOString() : null
+    // Ensure verified is boolean type
+    const verifiedValue = Boolean(verified)
+    console.log('AdminPanel: Normalized verified value:', verifiedValue)
+
+    // First check the document
+    const beforeDoc = await adminDb.collection('verification').doc(userId).get()
+    console.log('AdminPanel: Before update:', beforeDoc.exists ? beforeDoc.data()?.verified : null)
+
+    await adminDb.collection('verification').doc(userId).update({
+      verified: verifiedValue,
+      lastAdminUpdate: new Date().toISOString(),
+      updatedBy: 'admin'
     })
+
+    // Verify the update
+    const afterDoc = await adminDb.collection('verification').doc(userId).get()
+    console.log('AdminPanel: After update:', afterDoc.exists ? afterDoc.data()?.verified : null)
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Detailed error:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      env: {
-        hasProjectId: !!process.env.FIREBASE_PROJECT_ID,
-        hasClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
-        hasPrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
-      }
-    })
-    
-    return NextResponse.json({ 
-      error: 'Failed to update verification status',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 })
+    console.error('Error updating verified status:', error)
+    return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
   }
 } 
