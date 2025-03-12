@@ -99,22 +99,28 @@ export default function PhoneAuth() {
       // Try to confirm the verification code
       await verificationId.confirm(verificationCode)
       
-      console.log('SMS verification successful!')
+      // Show visible confirmation
+      alert('SMS verified! Setting account status...')
       
-      // Instead of updating Firestore directly, call our API endpoint
-      const response = await fetch('/api/auth/complete-verification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          uid: auth.currentUser?.uid
-        }),
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to complete verification');
+      // Use EXACTLY the same method as the admin panel
+      if (auth.currentUser?.uid) {
+        try {
+          const response = await fetch('/api/admin/force-set-unverified', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uid: auth.currentUser.uid })
+          })
+
+          if (!response.ok) {
+            throw new Error('Failed to set unverified status')
+          }
+
+          // Check if it worked
+          alert('Status set! Redirecting to dashboard...')
+        } catch (error) {
+          console.error('Failed to set user as unverified:', error)
+          alert('Warning: Failed to set verification status. Please contact support.')
+        }
       }
       
       setVerifying(false)

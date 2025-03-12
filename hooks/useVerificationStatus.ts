@@ -17,7 +17,7 @@ export function useVerificationStatus() {
           if (doc.exists()) {
             // Read the verified status from the document data
             const data = doc.data()
-            setIsVerified(data?.verified === true)
+            setIsVerified(data?.accountStatus === 'PREMIUM')
           } else {
             setIsVerified(false)
           }

@@ -7,7 +7,8 @@ import 'react-phone-input-2/lib/style.css'
 import { signInWithCustomToken } from 'firebase/auth'
 import { auth, db } from '@/firebase/config'
 import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from 'firebase/auth'
-import { doc, setDoc, getDoc, increment, runTransaction } from 'firebase/firestore'
+import { doc, setDoc, getDoc, increment, runTransaction, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore'
+import { getFirestore } from 'firebase/firestore'
 
 export default function Register() {
   const [step, setStep] = useState(1)
@@ -64,9 +65,56 @@ export default function Register() {
     }
   }, [step])
 
+  useEffect(() => {
+    // Check verification settings on page load
+    const checkVerificationSetting = async () => {
+      try {
+        const settingsDoc = await getDoc(doc(db, 'system', 'settings'));
+        const enabled = settingsDoc.exists() 
+          ? settingsDoc.data()?.verificationEnabled !== false
+          : true;
+        console.log("INITIAL CHECK - Verification enabled:", enabled);
+        console.log("Raw settings document:", settingsDoc.exists() ? settingsDoc.data() : "No document");
+      } catch (error) {
+        console.error("Error in initial verification check:", error);
+      }
+    };
+    
+    checkVerificationSetting();
+  }, []);
+
+  useEffect(() => {
+    // Skip cleanup for completed registrations or step 1
+    if (step === 1) return;
+    
+    // Handle page navigation/closing
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Only prompt if in a verification stage
+      if (step === 2 || step === 3) {
+        const message = "Leaving this page will cancel your registration. Are you sure?";
+        e.returnValue = message;
+        return message;
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // Instead of trying to do cleanup during unload (which is unreliable),
+    // we'll rely on the server-side timeout to clean up abandoned registrations
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [step]);
+
   const moveToStep2 = () => {
     setStep(2)
     setTimeLeft(60)
+  }
+
+  const moveToStep3 = () => {
+    setStep(3)
   }
 
   const validateForm = () => {
@@ -150,6 +198,7 @@ export default function Register() {
 
       const { userId } = await userIdResponse.json()
 
+      // Create user in Firestore with explicit 'verified' field set to 'BASIC'
       await setDoc(doc(db, 'verification', user.uid), {
         userId,
         fullName,
@@ -159,52 +208,88 @@ export default function Register() {
         dateOfBirth: 'N/A',
         products: 'Information',
         nationality: 'N/A',
-        registrationDate: new Date().toISOString().split('T')[0],
+        registrationDate: new Date().toISOString(),
         documents: 'N/A',
         securityLevel: 'Password',
-        verified: false,
+        accountStatus: 'BASIC',
+        uniqueId: 'N/A',
+        emailVerified: false,
+        uid: user.uid,
+        _initiallySetTo: 'BASIC',
+        _createdAt: serverTimestamp()
       })
 
-      // Add logging right after setting the document
-      console.log('User document created with verified=false')
+      console.log('User document created with verified: BASIC')
 
-      // Then verify the document was created correctly
-      const docRef = doc(db, 'verification', user.uid);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        console.log("Document data:", docSnap.data());
-        // Log specifically the verified field
-        console.log("Verified status:", docSnap.data().verified);
-      } else {
-        console.log("No such document!");
+      // Get verification settings through the API
+      let verificationEnabled = true; // Default to enabled
+      try {
+        const response = await fetch('/api/admin/get-verification-status')
+        if (response.ok) {
+          const data = await response.json()
+          verificationEnabled = data.enabled
+          console.log("Verification enabled (from API):", verificationEnabled)
+        }
+      } catch (error) {
+        console.error("Error getting verification status:", error)
       }
 
-      // Send email verification
-      await sendEmailVerification(user)
-
-      // Store credentials for SMS verification later
-      sessionStorage.setItem('pendingRegistration', JSON.stringify({
-        email,
-        password,
-        fullName,
-        phoneNumber,
-        uid: user.uid
-      }))
-
-      // Set timeout to delete user if not verified
-      setTimeout(async () => {
-        const currentUser = auth.currentUser
-        if (currentUser && !currentUser.emailVerified) {
-          await currentUser.delete()
-          sessionStorage.removeItem('pendingRegistration')
-          setStep(1)
-          setErrors({ general: 'Verification timeout. Please try again.' })
-        }
-      }, 60000) // 1 minute timeout
-
-      // Show email verification step
-      moveToStep2()
-      setMessage('Please check your email to verify your account.')
+      if (verificationEnabled) {
+        // Normal verification flow
+        await sendEmailVerification(user)
+        
+        // Store credentials for SMS verification later
+        sessionStorage.setItem('pendingRegistration', JSON.stringify({
+          email, password, fullName, phoneNumber, uid: user.uid
+        }))
+        
+        // Set timeout to delete unverified users
+        setTimeout(async () => {
+          const currentUser = auth.currentUser
+          if (currentUser && !currentUser.emailVerified) {
+            await currentUser.delete()
+            sessionStorage.removeItem('pendingRegistration')
+            setStep(1)
+            setErrors({ general: 'Verification timeout. Please try again.' })
+          }
+        }, 60000)
+        
+        moveToStep2()
+        setMessage('Please check your email to verify your account.')
+      } else {
+        // SIMPLIFIED APPROACH: Skip ALL verification when disabled
+        console.log('Verification disabled - skipping all verification steps')
+        
+        // Replace the document with a complete one including verified field
+        await setDoc(doc(db, 'verification', user.uid), {
+          userId,
+          fullName,
+          email,
+          phoneNumber: `+${phoneNumber}`,
+          accountAgent: 'N/A',
+          dateOfBirth: 'N/A',
+          products: 'Information',
+          nationality: 'N/A',
+          registrationDate: new Date().toISOString(),
+          documents: 'N/A',
+          securityLevel: 'Password',
+          accountStatus: 'BASIC',
+          uniqueId: 'N/A',
+          emailVerified: true,
+          phoneVerified: true,
+          uid: user.uid,
+          _verificationBypassed: true,
+          _createdAt: serverTimestamp()
+        })
+        
+        // Display success message
+        setMessage('Registration successful! Redirecting to dashboard...')
+        
+        // Redirect to dashboard after a brief delay
+        setTimeout(() => {
+          router.push('/dashboard')
+        }, 2000)
+      }
 
     } catch (error) {
       console.error('Registration error:', error)
@@ -247,13 +332,6 @@ export default function Register() {
       if (!verifyResponse.ok) {
         throw new Error(data.error || 'Failed to verify code')
       }
-
-      // Update user verification status in Firestore
-      await setDoc(doc(db, 'verification', uid), {
-        verified: true,
-        phoneVerified: true,
-        phoneVerifiedAt: new Date().toISOString()
-      }, { merge: true })
 
       // Clean up stored data
       sessionStorage.removeItem('pendingRegistration')
@@ -525,12 +603,58 @@ export default function Register() {
             >
               Sign In
             </Link>
-            <Link
-              href="/"
-              className="w-full flex justify-center py-2 px-4 border border-gray-700 rounded-full shadow-sm text-sm font-medium text-gray-300 bg-[#1E1E1E] hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all"
-            >
-              Home
-            </Link>
+            {step === 2 || step === 3 ? (
+              <Link
+                href="/"
+                className="w-full flex justify-center py-2 px-4 border border-gray-700 rounded-full shadow-sm text-sm font-medium text-gray-300 bg-[#1E1E1E] hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all"
+                onClick={async (e) => {
+                  // Prevent default navigation
+                  e.preventDefault();
+                  
+                  if (auth.currentUser) {
+                    try {
+                      const uid = auth.currentUser.uid;
+                      console.log('User clicked Home during verification. Cleaning up user:', uid);
+                      
+                      // Use an API endpoint to handle the deletion instead of doing it client-side
+                      const response = await fetch('/api/auth/cancel-registration', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ uid })
+                      });
+                      
+                      if (response.ok) {
+                        console.log('User cleanup successful');
+                      } else {
+                        console.error('User cleanup failed');
+                      }
+                      
+                      // Remove from session storage
+                      sessionStorage.removeItem('pendingRegistration');
+                      
+                      // Navigate home
+                      window.location.href = "/";
+                    } catch (error) {
+                      console.error('Error during Home button cleanup:', error);
+                      // Still navigate home even if cleanup fails
+                      window.location.href = "/";
+                    }
+                  } else {
+                    // If no user, just navigate home
+                    window.location.href = "/";
+                  }
+                }}
+              >
+                Home
+              </Link>
+            ) : (
+              <Link
+                href="/"
+                className="w-full flex justify-center py-2 px-4 border border-gray-700 rounded-full shadow-sm text-sm font-medium text-gray-300 bg-[#1E1E1E] hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all"
+              >
+                Home
+              </Link>
+            )}
           </div>
         </div>
       </div>

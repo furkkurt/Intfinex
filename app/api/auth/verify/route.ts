@@ -63,6 +63,40 @@ export async function POST(req: NextRequest) {
       formattedPhone = `+${formattedPhone}`
     }
 
+    // First check if verification is enabled
+    const settingsDoc = await adminDb.collection('system').doc('settings').get()
+    const verificationEnabled = settingsDoc.exists 
+      ? settingsDoc.data()?.verificationEnabled !== false 
+      : true
+
+    // If verification is disabled, bypass verification
+    if (!verificationEnabled) {
+      console.log('Verification disabled - bypassing verification')
+      
+      // If action is 'verify', mark as verified without requiring SMS
+      if (action === 'verify') {
+        if (!uid) {
+          return NextResponse.json({ error: 'Missing UID parameter' }, { status: 400 })
+        }
+        
+        // Update the user as verified without SMS
+        await adminDb.collection('verification').doc(uid).update({
+          phoneVerified: true,
+          phoneVerifiedAt: new Date().toISOString(),
+          accountStatus: 'PREMIUM',
+          _skippedVerification: true
+        })
+        
+        return NextResponse.json({ success: true, message: 'Verification bypassed' })
+      }
+      
+      // If action is 'send', just return success without sending SMS
+      if (action === 'send') {
+        return NextResponse.json({ success: true, message: 'Verification bypassed' })
+      }
+    }
+    
+    // Regular verification flow continues below for when SMS verification is enabled
     if (action === 'verify') {
       console.log('Verifying code...')
       const storedData = global.verificationCodes?.get(formattedPhone)
@@ -93,7 +127,7 @@ export async function POST(req: NextRequest) {
 
         // Create verification document with phone number
         await db.collection('verification').doc(uid).set({
-          verified: false,
+          accountStatus: 'PREMIUM',
           emailVerified: false,
           uid: uid,
           registrationDate: new Date().toISOString(),
@@ -185,9 +219,9 @@ export async function POST(req: NextRequest) {
         console.log('⚠️ ATTENTION: Setting verified status for user:', uid)
         
         await adminDb.collection('verification').doc(uid).update({
-          verified: false,  // Force this to be false instead of true
           phoneVerified: true,
-          phoneVerifiedAt: new Date().toISOString()
+          phoneVerifiedAt: new Date().toISOString(),
+          accountStatus: 'PREMIUM'
         })
         
         // Check after update

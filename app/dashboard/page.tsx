@@ -19,6 +19,8 @@ interface UserDetails {
   documents: string
   securityLevel: string
   nationality: string
+  accountStatus: string
+  uniqueId: string
 }
 
 function Dashboard() {
@@ -27,6 +29,42 @@ function Dashboard() {
   const [showTicketModal, setShowTicketModal] = useState(false)
   const [ticketSubject, setTicketSubject] = useState('')
   const [ticketMessage, setTicketMessage] = useState('')
+
+  useEffect(() => {
+    const checkForPendingFix = async () => {
+      const needsFixUid = localStorage.getItem('needsVerificationFix')
+      
+      if (needsFixUid) {
+        console.log('Found pending verification fix in localStorage for:', needsFixUid)
+        alert('Found pending verification fix - applying now')
+        
+        try {
+          // Make the API call from the dashboard
+          const response = await fetch('/api/auth/emergency-fix', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              uid: needsFixUid,
+              source: 'dashboard'
+            })
+          })
+          
+          console.log('Dashboard emergency fix response:', response.ok)
+          
+          // Clear the localStorage item only if successful
+          if (response.ok) {
+            localStorage.removeItem('needsVerificationFix')
+            alert('Verification fix complete!')
+          }
+        } catch (error) {
+          console.error('Dashboard fix error:', error)
+        }
+      }
+    }
+    
+    // Run immediately
+    checkForPendingFix()
+  }, [])
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -46,7 +84,9 @@ function Dashboard() {
               registrationDate: data.registrationDate,
               documents: data.documents,
               securityLevel: data.securityLevel,
-              nationality: data.nationality
+              nationality: data.nationality,
+              accountStatus: data.accountStatus,
+              uniqueId: data.uniqueId || 'N/A'
             })
           }
         })
@@ -58,42 +98,95 @@ function Dashboard() {
   }, [])
 
   useEffect(() => {
-    const ensureVerifiedIsFalse = async () => {
+    const monitorVerificationStatus = async () => {
       const user = auth.currentUser
       if (user) {
         try {
           const db = getFirestore()
           const userDocRef = doc(db, 'verification', user.uid)
           
-          // Check current value
+          // Check current verification status
           const docSnap = await getDoc(userDocRef)
           
-          if (docSnap.exists() && docSnap.data().verified === true) {
-            console.log('Found verified=true for new user, correcting...')
-            
-            // Use our server-side API to fix it with admin privileges
-            const response = await fetch('/api/auth/fix-verified-status', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ uid: user.uid }),
+          if (docSnap.exists()) {
+            console.log('User verification status on dashboard load:', {
+              verified: docSnap.data().verified,
+              initiallySetTo: docSnap.data()._initiallySetTo || null,
+              uid: user.uid
             })
-            
-            if (response.ok) {
-              console.log('Successfully reset verified status to false')
-            } else {
-              console.error('Failed to reset verified status')
-            }
           }
         } catch (error) {
-          console.error('Error ensuring verified status:', error)
+          console.error('Error checking verification status:', error)
         }
       }
     }
     
-    ensureVerifiedIsFalse()
-  }, []) // This will run once when the dashboard mounts
+    monitorVerificationStatus()
+  }, [])
+
+  useEffect(() => {
+    const fixNewUserVerificationStatus = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        
+        const userDocRef = doc(db, 'verification', user.uid);
+        const docSnap = await getDoc(userDocRef);
+        
+        if (!docSnap.exists()) return;
+        
+        const userData = docSnap.data();
+        
+        // Check if this is a new registration (within last 60 seconds)
+        const registrationDate = userData.registrationDate;
+        const today = new Date().toISOString().split('T')[0];
+        
+        const isNewRegistration = registrationDate === today;
+        
+        // Get the timestamp if available
+        const createdAt = userData._createdAt?.toDate();
+        const now = new Date();
+        const isWithinTimeWindow = createdAt && 
+          (now.getTime() - createdAt.getTime() < 60000); // 60 seconds
+        
+        // Either it was registered today and has no timestamp,
+        // or it was registered within the time window
+        if (isNewRegistration && (!createdAt || isWithinTimeWindow)) {
+          console.log('New user detected - fixing verification status...');
+          
+          // Direct update through Firestore (client-side)
+          try {
+            await updateDoc(userDocRef, {
+              verified: false,
+              _fixedAt: new Date().toISOString(),
+              _fixSource: 'dashboard-detection'
+            });
+            console.log('Successfully set verified to false');
+          } catch (firestoreError) {
+            console.error('Firestore update failed, trying API...', firestoreError);
+            
+            // Backup approach: API call
+            const response = await fetch('/api/admin/force-set-unverified', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ uid: user.uid })
+            });
+            
+            if (response.ok) {
+              console.log('API fix successful');
+            } else {
+              console.error('API fix failed');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fixing verification status:', error);
+      }
+    };
+    
+    // Execute immediately
+    fixNewUserVerificationStatus();
+  }, []);
 
   const handleSubmitTicket = (e: React.FormEvent) => {
     e.preventDefault()
@@ -151,6 +244,16 @@ function Dashboard() {
                 <div>
                   <p className="text-gray-400">Security Level</p>
                   <p className="text-white text-lg">{userDetails.securityLevel}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400">Account Status</p>
+                  <p className={`text-white text-lg ${userDetails.accountStatus === 'PREMIUM' ? 'text-green-500' : 'text-yellow-500'}`}>
+                    {userDetails.accountStatus === 'PREMIUM' ? 'Premium' : 'Basic'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-400">ID Number</p>
+                  <p className="text-white text-lg">{userDetails.uniqueId}</p>
                 </div>
               </div>
             )}

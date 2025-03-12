@@ -28,6 +28,25 @@ export async function POST(request: Request) {
       console.log('Normalized verified value:', updates.verified);
     }
 
+    // Check if uniqueId is being updated and is not N/A
+    if (updates.uniqueId && updates.uniqueId !== 'N/A') {
+      // Check if this uniqueId already exists for another user
+      const existingUsers = await adminDb.collection('verification')
+        .where('uniqueId', '==', updates.uniqueId)
+        .get()
+      
+      // If this uniqueId exists and belongs to a different user, return error
+      if (!existingUsers.empty) {
+        const isOwnId = existingUsers.docs.some(doc => doc.id === userId)
+        if (!isOwnId) {
+          return NextResponse.json(
+            { error: 'This Unique ID is already in use by another user' }, 
+            { status: 400 }
+          )
+        }
+      }
+    }
+
     // Update Firestore
     await adminDb.collection('verification').doc(userId).update(updates);
     

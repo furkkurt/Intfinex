@@ -11,7 +11,8 @@ interface User {
   fullName: string
   email: string
   phoneNumber: string
-  verified: boolean
+  accountStatus: string
+  uniqueId: string
   accountAgent: string
   dateOfBirth: string
   products: string
@@ -30,12 +31,18 @@ export default function AdminPanel() {
   const [error, setError] = useState('')
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [editFormData, setEditFormData] = useState<Partial<User>>({})
+  const [editFormData, setEditFormData] = useState<Partial<User & { password: string }>>({})
+  const [passwordSuccess, setPasswordSuccess] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
   const [authError, setAuthError] = useState('')
+  
+  // New state variables
+  const [verificationEnabled, setVerificationEnabled] = useState(true)
+  const [isTogglingVerification, setIsTogglingVerification] = useState(false)
   
   const db = getFirestore();
 
@@ -50,6 +57,65 @@ export default function AdminPanel() {
       setIsAuthenticated(true)
     }
   }, [])
+
+  // Add this function to handle the SMS verification toggle
+  const toggleVerification = async () => {
+    try {
+      setIsTogglingVerification(true)
+      console.log("Toggling verification to:", !verificationEnabled)
+      
+      const response = await fetch('/api/admin/toggle-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ enabled: !verificationEnabled }),
+      })
+      
+      const data = await response.json()
+      console.log("Toggle response:", data)
+      
+      if (!response.ok) {
+        throw new Error('Failed to toggle verification')
+      }
+      
+      // Don't check directly from Firestore - it will cause permission errors
+      // Instead, use our API to check the status
+      const statusResponse = await fetch('/api/admin/get-verification-status')
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json()
+        console.log("Settings after toggle (from API):", statusData)
+        setVerificationEnabled(statusData.enabled)
+      } else {
+        // Still update the UI state based on what we expect
+        setVerificationEnabled(!verificationEnabled)
+      }
+    } catch (error) {
+      console.error('Error toggling verification:', error)
+      setError('Failed to toggle verification')
+    } finally {
+      setIsTogglingVerification(false)
+    }
+  }
+
+  // Add this after component initialization to fetch the current status
+  useEffect(() => {
+    const fetchVerificationStatus = async () => {
+      try {
+        const response = await fetch('/api/admin/get-verification-status')
+        if (response.ok) {
+          const data = await response.json()
+          setVerificationEnabled(data.enabled)
+        }
+      } catch (error) {
+        console.error('Error fetching verification status:', error)
+      }
+    }
+    
+    if (isAuthenticated) {
+      fetchVerificationStatus()
+    }
+  }, [isAuthenticated])
 
   const fetchUsers = async () => {
     try {
@@ -71,8 +137,10 @@ export default function AdminPanel() {
     }
   }
 
-  const handleVerifyUser = async (userId: string, currentStatus: boolean) => {
+  const handleVerifyUser = async (userId: string, currentStatus: string) => {
     try {
+      const newStatus = currentStatus === 'PREMIUM' ? 'BASIC' : 'PREMIUM';
+      
       const response = await fetch('/api/admin/update-user', {
         method: 'POST',
         headers: {
@@ -80,7 +148,7 @@ export default function AdminPanel() {
         },
         body: JSON.stringify({ 
           userId, 
-          updates: { verified: !currentStatus } 
+          updates: { accountStatus: newStatus }
         }),
       })
       
@@ -90,7 +158,7 @@ export default function AdminPanel() {
       
       // Update the local state
       setUsers(users.map(user => 
-        user.id === userId ? { ...user, verified: !currentStatus } : user
+        user.id === userId ? { ...user, accountStatus: newStatus } : user
       ))
     } catch (error) {
       console.error('Error updating user:', error)
@@ -125,8 +193,12 @@ export default function AdminPanel() {
   }
 
   const openEditModal = (user: User) => {
-    console.log('Opening edit modal for user:', user) // Debug log
+    console.log('Opening edit modal for user:', user)
     setEditingUser(user)
+    // Reset password status messages
+    setPasswordSuccess('')
+    setPasswordError('')
+    
     // Ensure all fields are initialized
     setEditFormData({
       fullName: user.fullName || '',
@@ -140,7 +212,9 @@ export default function AdminPanel() {
       securityLevel: user.securityLevel || 'Password',
       userId: user.userId || 10000,
       registrationDate: user.registrationDate || new Date().toISOString().split('T')[0],
-      verified: user.verified === undefined ? false : user.verified
+      accountStatus: user.accountStatus || 'BASIC',
+      uniqueId: user.uniqueId || 'N/A',
+      password: '' // Add empty password field
     })
     setShowEditModal(true)
   }
@@ -156,6 +230,40 @@ export default function AdminPanel() {
     if (!editingUser) return
     
     try {
+      setError('')
+      
+      // Check if password should be updated
+      if (editFormData.password && editFormData.password.length > 0) {
+        // Validate password
+        if (editFormData.password.length < 6) {
+          setPasswordError('Password must be at least 6 characters')
+          return
+        }
+        
+        // Call the password reset API
+        const passwordResponse = await fetch('/api/admin/reset-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            uid: editingUser.id,
+            newPassword: editFormData.password
+          }),
+        })
+        
+        if (!passwordResponse.ok) {
+          const passwordData = await passwordResponse.json()
+          throw new Error(passwordData.error || 'Failed to update password')
+        }
+        
+        setPasswordSuccess('Password updated successfully')
+      }
+      
+      // Create a copy of editFormData without the password field
+      const { password, ...updateData } = editFormData
+      
+      // Update user profile data
       const response = await fetch('/api/admin/update-user', {
         method: 'POST',
         headers: {
@@ -163,7 +271,7 @@ export default function AdminPanel() {
         },
         body: JSON.stringify({ 
           userId: editingUser.id, 
-          updates: editFormData 
+          updates: updateData 
         }),
       })
       
@@ -171,15 +279,16 @@ export default function AdminPanel() {
         throw new Error('Failed to update user')
       }
       
-      // Update the local state
+      // Update local state
       setUsers(users.map(user => 
-        user.id === editingUser.id ? { ...user, ...editFormData } : user
+        user.id === editingUser.id ? { ...user, ...updateData } : user
       ))
       
+      // Close modal after success
       setShowEditModal(false)
     } catch (error) {
       console.error('Error updating user:', error)
-      setError('Failed to update user')
+      setError(error instanceof Error ? error.message : 'Failed to update user')
     }
   }
 
@@ -263,6 +372,30 @@ export default function AdminPanel() {
           Refresh Users
         </button>
         
+        <div className="flex items-center justify-between mb-6 bg-[#222] p-4 rounded-lg">
+          <div className="flex items-center">
+            <span className="text-white mr-4">Verification:</span>
+            <button
+              onClick={toggleVerification}
+              disabled={isTogglingVerification}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#00ffd5] focus:ring-offset-2 ${
+                verificationEnabled ? 'bg-[#00ffd5]' : 'bg-gray-700'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  verificationEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          <div className="text-sm text-gray-400">
+            {verificationEnabled 
+              ? 'Verification is enabled - users will receive SMS and email verification' 
+              : 'Verification is disabled - SMS and email verification will be skipped'}
+          </div>
+        </div>
+        
         {loading ? (
           <div className="text-white">Loading users...</div>
         ) : users.length === 0 ? (
@@ -291,6 +424,9 @@ export default function AdminPanel() {
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    Unique ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -314,26 +450,27 @@ export default function AdminPanel() {
                       {user.registrationDate || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {user.verified ? (
-                        <span className="px-2 py-1 text-xs font-semibold bg-green-900/30 text-green-500 rounded-full">
-                          Verified
-                        </span>
-                      ) : (
-                        <span className="px-2 py-1 text-xs font-semibold bg-red-900/30 text-red-500 rounded-full">
-                          Unverified
-                        </span>
-                      )}
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        user.accountStatus === 'PREMIUM' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {user.accountStatus === 'PREMIUM' ? 'Premium' : 'Basic'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {user.uniqueId || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm flex space-x-2">
                       <button
-                        onClick={() => handleVerifyUser(user.id, user.verified)}
+                        onClick={() => handleVerifyUser(user.id, user.accountStatus)}
                         className={`px-3 py-1 rounded-full text-xs ${
-                          user.verified
+                          user.accountStatus === 'PREMIUM'
                             ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
                             : 'bg-[#00ffd5] hover:bg-[#00e6c0] text-black'
                         }`}
                       >
-                        {user.verified ? 'Unverify' : 'Verify'}
+                        {user.accountStatus === 'PREMIUM' ? 'Unverify' : 'Verify'}
                       </button>
                       <button
                         onClick={() => openEditModal(user)}
@@ -509,17 +646,53 @@ export default function AdminPanel() {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Verified
+                    Account Status
                   </label>
                   <select
-                    name="verified"
-                    value={editFormData.verified ? 'true' : 'false'}
-                    onChange={(e) => setEditFormData({...editFormData, verified: e.target.value === 'true'})}
+                    name="accountStatus"
+                    value={editFormData.accountStatus || 'BASIC'}
+                    onChange={(e) => setEditFormData({...editFormData, accountStatus: e.target.value})}
                     className="w-full bg-[#222] border-gray-700 rounded-lg shadow-sm focus:ring-[#00ffd5] focus:border-[#00ffd5] text-white px-3 py-2"
                   >
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
+                    <option value="BASIC">Basic</option>
+                    <option value="PREMIUM">Premium</option>
                   </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Unique ID
+                  </label>
+                  <input
+                    type="text"
+                    name="uniqueId"
+                    value={editFormData.uniqueId || ''}
+                    onChange={handleEditInputChange}
+                    className="w-full bg-[#222] border-gray-700 rounded-lg shadow-sm focus:ring-[#00ffd5] focus:border-[#00ffd5] text-white px-3 py-2"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Password (leave empty to keep current)
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={editFormData.password || ''}
+                    onChange={handleEditInputChange}
+                    className="w-full bg-[#222] border-gray-700 rounded-lg shadow-sm focus:ring-[#00ffd5] focus:border-[#00ffd5] text-white px-3 py-2"
+                    placeholder="Enter new password"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Must be at least 6 characters long
+                  </p>
+                  {passwordError && (
+                    <div className="text-red-500 text-sm mt-1">{passwordError}</div>
+                  )}
+                  {passwordSuccess && (
+                    <div className="text-green-500 text-sm mt-1">{passwordSuccess}</div>
+                  )}
                 </div>
               </div>
               
