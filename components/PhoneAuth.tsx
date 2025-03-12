@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { auth } from '@/lib/firebase'
+import { auth } from '@/firebase/config'
 import { 
   RecaptchaVerifier, 
   signInWithPhoneNumber,
