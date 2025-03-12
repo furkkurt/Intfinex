@@ -5,11 +5,8 @@ export async function POST(request: Request) {
   try {
     const { uid, source } = await request.json()
     
-    // Create an immediate response to prevent timeout
-    const response = NextResponse.json({ received: true, processing: true })
-    
-    // Use a separate async process to handle the fix
-    (async () => {
+    // Start background processing without awaiting it
+    const backgroundProcess = (async () => {
       console.log(`🚨 EMERGENCY FIX for ${uid} from ${source}`)
       
       try {
@@ -38,8 +35,8 @@ export async function POST(request: Request) {
       }
     })()
     
-    // Return the response object directly
-    return response
+    // Return response immediately, while background work continues
+    return NextResponse.json({ received: true, processing: true })
   } catch (error) {
     console.error('Emergency fix endpoint error:', error)
     return NextResponse.json({ error: 'Fix failed' }, { status: 500 })
