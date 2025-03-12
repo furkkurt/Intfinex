@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
 import { adminAuth, adminDb } from '@/lib/firebase-admin'
 
+interface AuthData {
+  displayName?: string;
+  email?: string;
+  phoneNumber?: string;
+}
+
 export async function GET() {
   try {
     // Fetch all users from the verification collection
@@ -12,7 +18,7 @@ export async function GET() {
     
     const users = await Promise.all(snapshot.docs.map(async (doc) => {
       const firestoreData = doc.data();
-      let authData = {};
+      let authData: AuthData = {};
       
       // Try to get additional data from Auth
       try {
