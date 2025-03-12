@@ -231,6 +231,7 @@ export default function AdminPanel() {
     
     try {
       setError('')
+      setPasswordError('')
       
       // Check if password should be updated
       if (editFormData.password && editFormData.password.length > 0) {
@@ -275,8 +276,17 @@ export default function AdminPanel() {
         }),
       })
       
+      // Check for specific error about uniqueId
       if (!response.ok) {
-        throw new Error('Failed to update user')
+        const errorData = await response.json()
+        
+        // Check if this is a uniqueId conflict error
+        if (errorData.error && errorData.error.includes('Unique ID is already in use')) {
+          setError('This Unique ID is already assigned to another user')
+        } else {
+          throw new Error(errorData.error || 'Failed to update user')
+        }
+        return // Don't close modal if there's an error
       }
       
       // Update local state
@@ -462,16 +472,6 @@ export default function AdminPanel() {
                       {user.uniqueId || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm flex space-x-2">
-                      <button
-                        onClick={() => handleVerifyUser(user.id, user.accountStatus)}
-                        className={`px-3 py-1 rounded-full text-xs ${
-                          user.accountStatus === 'PREMIUM'
-                            ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
-                            : 'bg-[#00ffd5] hover:bg-[#00e6c0] text-black'
-                        }`}
-                      >
-                        {user.accountStatus === 'PREMIUM' ? 'Unverify' : 'Verify'}
-                      </button>
                       <button
                         onClick={() => openEditModal(user)}
                         className="px-3 py-1 bg-blue-500 text-white rounded-full text-xs hover:bg-blue-600"
