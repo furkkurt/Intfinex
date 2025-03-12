@@ -74,10 +74,17 @@ export async function POST(req: NextRequest) {
       try {
         // Update the user's phone number in Firebase Auth
         await adminAuth.updateUser(uid, {
-          phoneNumber: formattedPhone
+          phoneNumber: formattedPhone,
+          emailVerified: false // Ensure email starts as unverified
         })
 
-        console.log('Updated phone number in Auth')
+        // Send verification email
+        const user = await adminAuth.getUser(uid)
+        if (user.email) {
+          await adminAuth.generateEmailVerificationLink(user.email)
+          // Send the verification email using your email service
+          await sendVerificationEmail(user.email)
+        }
 
         // Get next user ID
         const userId = await getNextUserId()
@@ -86,6 +93,7 @@ export async function POST(req: NextRequest) {
         // Create verification document with phone number
         await db.collection('verification').doc(uid).set({
           verified: false,
+          emailVerified: false,
           uid: uid,
           registrationDate: new Date().toISOString(),
           userId: userId,
@@ -110,14 +118,11 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ 
           status: 'success',
-          customToken
+          customToken,
+          requireEmailVerification: true
         })
       } catch (error) {
-        console.error('Detailed verification error:', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined
-        })
-
+        console.error('Verification error:', error)
         return NextResponse.json({ error: 'Failed to verify user' }, { status: 500 })
       }
     }
@@ -166,4 +171,10 @@ export async function POST(req: NextRequest) {
     console.error('Handler error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+// Email verification helper function
+async function sendVerificationEmail(email: string) {
+  // Implement your email sending logic here
+  // You can use services like SendGrid, AWS SES, etc.
 } 

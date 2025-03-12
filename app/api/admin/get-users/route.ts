@@ -1,34 +1,48 @@
 import { NextResponse } from 'next/server'
-import { adminAuth } from '@/lib/firebase-admin'
-import { getFirestore } from 'firebase-admin/firestore'
-
-const db = getFirestore()
+import { adminAuth, adminDb } from '@/lib/firebase-admin'
 
 export async function GET() {
   try {
-    const verificationSnapshot = await db.collection('verification').get()
-    const users = []
-
-    for (const doc of verificationSnapshot.docs) {
-      const verificationData = doc.data()
-      const userId = doc.id
-
-      try {
-        const userRecord = await adminAuth.getUser(userId)
-        users.push({
-          id: userId,
-          name: userRecord.displayName || 'N/A',
-          email: userRecord.email || 'N/A',
-          phoneNumber: userRecord.phoneNumber || 'N/A',
-          verified: verificationData.verified || false
-        })
-      } catch (error) {
-        console.error('Error fetching user:', error)
-      }
+    // Fetch all users from the verification collection
+    const snapshot = await adminDb.collection('verification').get()
+    
+    if (snapshot.empty) {
+      return NextResponse.json({ users: [] })
     }
-
+    
+    const users = await Promise.all(snapshot.docs.map(async (doc) => {
+      const firestoreData = doc.data();
+      let authData = {};
+      
+      // Try to get additional data from Auth
+      try {
+        const userRecord = await adminAuth.getUser(doc.id);
+        authData = {
+          displayName: userRecord.displayName,
+          email: userRecord.email,
+          phoneNumber: userRecord.phoneNumber,
+        };
+      } catch (error) {
+        console.error(`Failed to fetch Auth data for user ${doc.id}:`, error);
+      }
+      
+      // Merge Firestore and Auth data
+      return {
+        id: doc.id,
+        ...firestoreData,
+        // Auth data takes precedence for these fields
+        fullName: authData.displayName || firestoreData.fullName || 'N/A',
+        email: authData.email || firestoreData.email || 'N/A',
+        phoneNumber: authData.phoneNumber || firestoreData.phoneNumber || 'N/A'
+      };
+    }));
+    
     return NextResponse.json({ users })
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
+    console.error('Error fetching users:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch users' }, 
+      { status: 500 }
+    )
   }
 } 

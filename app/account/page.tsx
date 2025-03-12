@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { auth } from '@/lib/firebase'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
+import { auth } from '@/firebase/config'
 
 interface UserInfo {
   displayName: string | null

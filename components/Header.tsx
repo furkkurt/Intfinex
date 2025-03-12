@@ -2,33 +2,40 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { auth } from '@/lib/firebase'
 import { signOut, onAuthStateChanged } from 'firebase/auth'
 import { useVerificationStatus } from '@/hooks/useVerificationStatus'
+import { auth } from '@/firebase/config'
 
 export default function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [displayName, setDisplayName] = useState('')
+  const [userName, setUserName] = useState('')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const { isVerified } = useVerificationStatus()
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsLoggedIn(!!user)
-      setDisplayName(user?.displayName || '')
+    // Listen for auth state changes
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setIsLoggedIn(true)
+        setUserName(user.displayName || '')
+      } else {
+        setIsLoggedIn(false)
+        setUserName('')
+      }
     })
 
+    // Cleanup subscription
     return () => unsubscribe()
   }, [])
 
-  const handleLogout = async () => {
+  const handleSignOut = async () => {
     try {
       await auth.signOut()
       router.push('/')
     } catch (error) {
-      console.error('Error signing out:', error)
+      console.error('Sign out error:', error)
     }
   }
 
@@ -62,25 +69,30 @@ export default function Header() {
           <div className="hidden md:flex items-center space-x-6">
             {isLoggedIn ? (
               <>
-                <span className="text-gray-300">Welcome, {displayName}</span>
-                <button
-                  onClick={handleLogout}
+                <Link 
+                  href="/account" 
                   className="text-gray-300 hover:text-white transition-colors"
                 >
-                  Logout
+                  {userName || 'Account'}
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  className="text-gray-300 hover:text-white transition-colors"
+                >
+                  Sign Out
                 </button>
               </>
             ) : (
               <>
-                <Link
-                  href="/login"
+                <Link 
+                  href="/login" 
                   className="text-gray-300 hover:text-white transition-colors"
                 >
-                  Login
+                  Sign In
                 </Link>
                 <Link
                   href="/register"
-                  className="bg-[#00ffd5] text-black px-6 py-2 rounded-full hover:bg-[#00e6c0] transition-all transform hover:scale-105"
+                  className="bg-[#00ffd5] text-black px-4 py-2 rounded-full hover:bg-[#00e6c0] transition-colors"
                 >
                   Register
                 </Link>
@@ -126,15 +138,15 @@ export default function Header() {
                     {item.name}
                   </Link>
                 ))}
-                <div className="text-gray-300">Welcome, {displayName}</div>
+                <div className="text-gray-300">Welcome, {userName}</div>
                 <button
                   onClick={() => {
-                    handleLogout()
+                    handleSignOut()
                     setIsMenuOpen(false)
                   }}
                   className="block text-gray-300 hover:text-white transition-colors"
                 >
-                  Logout
+                  Sign Out
                 </button>
               </>
             ) : (
@@ -144,7 +156,7 @@ export default function Header() {
                   className="block text-gray-300 hover:text-white transition-colors"
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  Login
+                  Sign In
                 </Link>
                 <Link
                   href="/register"

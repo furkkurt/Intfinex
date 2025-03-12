@@ -1,44 +1,19 @@
-import { initializeApp, getApps, cert, App, getApp } from 'firebase-admin/app'
-import { getFirestore } from 'firebase-admin/firestore'
+import { initializeApp, getApps, cert } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
+import { getFirestore } from 'firebase-admin/firestore'
 
-// Update the private key formatting
-const privateKey = process.env.FIREBASE_PRIVATE_KEY ? 
-  process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined
-
-function getFirebaseAdminApp(): App {
-  if (getApps().length > 0) {
-    return getApp()
-  }
-
-  // Check if we have all required environment variables
-  if (!process.env.FIREBASE_PROJECT_ID ||
-      !process.env.FIREBASE_CLIENT_EMAIL ||
-      !privateKey) {
-    throw new Error('Missing Firebase Admin SDK credentials in environment variables')
-  }
-
-  return initializeApp({
+if (!getApps().length) {
+  initializeApp({
     credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
+      projectId: "intfinex-f46f8",
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: privateKey,
-    })
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
+    }),
+    projectId: "intfinex-f46f8"
   })
 }
 
-// Initialize the app
-let adminApp: App
-try {
-  adminApp = getFirebaseAdminApp()
-} catch (error) {
-  if (error instanceof Error && !/already exists/u.test(error.message)) {
-    console.error('Firebase admin initialization error:', error.stack)
-  }
-  // Ensure we have an app instance even if there was an error
-  adminApp = getApp()
-}
+const adminAuth = getAuth()
+const adminDb = getFirestore()
 
-// Initialize Firestore and Auth with the app instance
-export const adminDb = getFirestore(adminApp)
-export const adminAuth = getAuth(adminApp) 
+export { adminAuth, adminDb } 

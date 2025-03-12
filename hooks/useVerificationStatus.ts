@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { auth } from '@/lib/firebase'
+import { auth } from '@/firebase/config'
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore'
 
 const db = getFirestore()

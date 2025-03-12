@@ -3,6 +3,7 @@ import Header from './Header'
 import Footer from './Footer'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useVerificationStatus } from '@/hooks/useVerificationStatus'
 
 interface AuthenticatedLayoutProps {
   children: ReactNode
@@ -10,41 +11,49 @@ interface AuthenticatedLayoutProps {
 
 export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const pathname = usePathname()
+  const { isVerified, isLoading } = useVerificationStatus()
 
   return (
     <div className="min-h-screen bg-black">
       <Header />
       
       {/* Tabs Navigation */}
-      <div className="border-b border-gray-800">
-        <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-8">
-            <Link
-              href="/dashboard"
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                pathname === '/dashboard'
-                  ? 'border-[#00ffd5] text-[#00ffd5]'
-                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
-              }`}
-            >
-              Dashboard
-            </Link>
+      <div className="max-w-6xl mx-auto px-4 mt-8">
+        <div className="flex space-x-4">
+          <Link
+            href="/dashboard"
+            className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
+              pathname === '/dashboard'
+                ? 'bg-[#00ffd5] text-black'
+                : 'text-white hover:bg-white/10'
+            }`}
+          >
+            Dashboard
+          </Link>
+          
+          {isVerified && (
             <Link
               href="/financial-room"
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
                 pathname === '/financial-room'
-                  ? 'border-[#00ffd5] text-[#00ffd5]'
-                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
+                  ? 'bg-[#00ffd5] text-black'
+                  : 'text-white hover:bg-white/10'
               }`}
             >
               Financial Room
             </Link>
-          </div>
-        </nav>
+          )}
+          
+          {!isVerified && !isLoading && (
+            <div className="px-6 py-2 rounded-full text-sm font-medium text-gray-500 cursor-not-allowed">
+              Financial Room (Verification Required)
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main>
         {children}
       </main>
 
