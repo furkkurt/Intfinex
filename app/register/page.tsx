@@ -66,22 +66,23 @@ export default function Register() {
   }, [step])
 
   useEffect(() => {
-    // Check verification settings on page load
     const checkVerificationSetting = async () => {
       try {
-        const settingsDoc = await getDoc(doc(db, 'system', 'settings'));
-        const enabled = settingsDoc.exists() 
-          ? settingsDoc.data()?.verificationEnabled !== false
-          : true;
-        console.log("INITIAL CHECK - Verification enabled:", enabled);
-        console.log("Raw settings document:", settingsDoc.exists() ? settingsDoc.data() : "No document");
+        // Use the API route instead of direct Firestore access
+        const response = await fetch('/api/auth/get-settings')
+        const settings = await response.json()
+        
+        // Use the settings here
+        if (!settings.verificationEnabled) {
+          // Handle disabled verification
+        }
       } catch (error) {
-        console.error("Error in initial verification check:", error);
+        console.error('Error fetching settings:', error)
       }
-    };
+    }
     
-    checkVerificationSetting();
-  }, []);
+    checkVerificationSetting()
+  }, [])
 
   useEffect(() => {
     // Skip cleanup for completed registrations or step 1
@@ -100,9 +101,7 @@ export default function Register() {
     // Add event listeners
     window.addEventListener('beforeunload', handleBeforeUnload);
     
-    // Instead of trying to do cleanup during unload (which is unreliable),
-    // we'll rely on the server-side timeout to clean up abandoned registrations
-    
+    // Return cleanup function that runs when component unmounts
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
@@ -156,193 +155,130 @@ export default function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setErrors({})
     
-    if (!validateForm()) {
-      return
-    }
-
-    setIsLoading(true)
+    if (!validateForm()) return
 
     try {
-      // First validate email and phone
-      const validationResponse = await fetch('/api/auth/validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, phoneNumber })
-      })
-
-      const validationData = await validationResponse.json()
-      if (!validationResponse.ok) {
-        setErrors(validationData.errors)
-        return
-      }
-
-      // Create user in Firebase Auth
+      setIsLoading(true)
+      setErrors({})
+      
+      // Create user in Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const user = userCredential.user
-
+      
+      // Store reference to the newly created user
+      const uid = user.uid
+      
       // Update profile with full name
       await updateProfile(user, {
         displayName: fullName
       })
-
+      
+      // Send email verification
+      await sendEmailVerification(user)
+      
       // Get next user ID
       const userIdResponse = await fetch('/api/auth/get-next-user-id', {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       })
-
+      
       if (!userIdResponse.ok) {
         throw new Error('Failed to get user ID')
       }
-
+      
       const { userId } = await userIdResponse.json()
-
-      // Create user in Firestore with explicit 'verified' field set to 'BASIC'
-      await setDoc(doc(db, 'verification', user.uid), {
+      
+      // Store user data in Firestore
+      await setDoc(doc(db, 'verification', uid), {
         userId,
         fullName,
         email,
-        phoneNumber: `+${phoneNumber}`,
-        accountAgent: 'N/A',
-        dateOfBirth: 'N/A',
-        products: 'Information',
-        nationality: 'N/A',
-        registrationDate: new Date().toISOString(),
-        documents: 'N/A',
+        phoneNumber,
+        registrationDate: new Date().toISOString().split('T')[0],
         securityLevel: 'Password',
+        products: 'Information',
+        dateOfBirth: 'N/A',
+        accountAgent: 'N/A',
+        nationality: 'N/A',
+        documents: 'N/A',
         accountStatus: 'BASIC',
         uniqueId: 'N/A',
-        emailVerified: false,
-        uid: user.uid,
-        _initiallySetTo: 'BASIC',
-        _createdAt: serverTimestamp()
+        mailAndSmsVerification: false, // Add new verification tracker field
+        createdAt: serverTimestamp()
       })
-
-      console.log('User document created with verified: BASIC')
-
-      // Get verification settings through the API
-      let verificationEnabled = true; // Default to enabled
-      try {
-        const response = await fetch('/api/admin/get-verification-status')
-        if (response.ok) {
-          const data = await response.json()
-          verificationEnabled = data.enabled
-          console.log("Verification enabled (from API):", verificationEnabled)
-        }
-      } catch (error) {
-        console.error("Error getting verification status:", error)
-      }
-
-      if (verificationEnabled) {
-        // Normal verification flow
-        await sendEmailVerification(user)
-        
-        // Store credentials for SMS verification later
-        sessionStorage.setItem('pendingRegistration', JSON.stringify({
-          email, password, fullName, phoneNumber, uid: user.uid
-        }))
-        
-        // Set timeout to delete unverified users
-        setTimeout(async () => {
-          const currentUser = auth.currentUser
-          if (currentUser && !currentUser.emailVerified) {
-            await currentUser.delete()
-            sessionStorage.removeItem('pendingRegistration')
-            setStep(1)
-            setErrors({ general: 'Verification timeout. Please try again.' })
-          }
-        }, 60000)
-        
-        moveToStep2()
-        setMessage('Please check your email to verify your account.')
-      } else {
-        // SIMPLIFIED APPROACH: Skip ALL verification when disabled
-        console.log('Verification disabled - skipping all verification steps')
-        
-        // Replace the document with a complete one including verified field
-        await setDoc(doc(db, 'verification', user.uid), {
-          userId,
-          fullName,
-          email,
-          phoneNumber: `+${phoneNumber}`,
-          accountAgent: 'N/A',
-          dateOfBirth: 'N/A',
-          products: 'Information',
-          nationality: 'N/A',
-          registrationDate: new Date().toISOString(),
-          documents: 'N/A',
-          securityLevel: 'Password',
-          accountStatus: 'BASIC',
-          uniqueId: 'N/A',
-          emailVerified: true,
-          phoneVerified: true,
-          uid: user.uid,
-          _verificationBypassed: true,
-          _createdAt: serverTimestamp()
-        })
-        
-        // Display success message
-        setMessage('Registration successful! Redirecting to dashboard...')
-        
-        // Redirect to dashboard after a brief delay
-        setTimeout(() => {
-          router.push('/dashboard')
-        }, 2000)
-      }
-
+      
+      // Store registration data for later steps
+      sessionStorage.setItem('pendingRegistration', JSON.stringify({
+        uid,
+        email,
+        fullName,
+        phoneNumber,
+        userId
+      }))
+      
+      setMessage('Verification email sent! Please check your inbox.')
+      moveToStep2()
     } catch (error) {
       console.error('Registration error:', error)
-      // If Firestore creation fails, delete the auth user
-      if (auth.currentUser) {
-        await auth.currentUser.delete()
+      
+      if (error instanceof Error) {
+        if (error.message.includes('email-already-in-use')) {
+          setErrors({ email: 'Email is already in use' })
+        } else if (error.message.includes('invalid-email')) {
+          setErrors({ email: 'Email address is invalid' })
+        } else if (error.message.includes('weak-password')) {
+          setErrors({ password: 'Password is too weak' })
+        } else {
+          setErrors({ general: error.message })
+        }
+      } else {
+        setErrors({ general: 'An unexpected error occurred' })
       }
-      setErrors({
-        general: error instanceof Error ? error.message : 'Registration failed'
-      })
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleVerifyCode = async () => {
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setErrors({})
+    setIsLoading(true)
+    
     try {
-      setIsLoading(true)
-      const storedData = sessionStorage.getItem('pendingRegistration')
-      if (!storedData) {
-        throw new Error('Registration data not found')
-      }
-      const { phoneNumber, fullName, uid } = JSON.parse(storedData)
-
-      // Verify SMS code
-      const verifyResponse = await fetch('/api/auth/verify', {
+      console.log('Verifying code:', verificationCode)
+      
+      const response = await fetch('/api/auth/verify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           action: 'verify',
-          phoneNumber,
           code: verificationCode,
-          firstName: fullName.split(' ')[0],
-          lastName: fullName.split(' ')[1],
-          uid: uid
-        })
+          uid: auth.currentUser?.uid
+        }),
       })
 
-      const data = await verifyResponse.json()
-      if (!verifyResponse.ok) {
-        throw new Error(data.error || 'Failed to verify code')
+      const data = await response.json()
+      console.log('Verification response:', data)
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Verification failed')
       }
-
-      // Clean up stored data
+      
+      // Set a flag to prevent cleanup on unmount
+      sessionStorage.setItem('verificationComplete', 'true')
+      
+      // After successful verification, remove temporary data
       sessionStorage.removeItem('pendingRegistration')
-
+      
       // Redirect to dashboard
       router.push('/dashboard')
-
     } catch (error) {
       console.error('Verification error:', error)
       setErrors({
-        general: error instanceof Error ? error.message : 'Verification failed'
+        general: error instanceof Error ? error.message : 'Failed to verify SMS code'
       })
     } finally {
       setIsLoading(false)

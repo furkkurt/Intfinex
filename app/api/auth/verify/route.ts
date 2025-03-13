@@ -16,10 +16,10 @@ declare global {
   }>;
 }
 
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-)
+// Initialize Twilio client
+const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+  : null;
 
 const db = getFirestore()
 
@@ -51,195 +51,112 @@ const getNextUserId = async () => {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const body = await req.json()
-    const { phoneNumber, action, code, firstName, lastName, email, uid } = body
-
-    console.log('Verify endpoint received:', { action, phoneNumber, code, uid })
-
-    let formattedPhone = phoneNumber.replace(/\s+/g, '').replace(/[()-]/g, '')
-    if (!formattedPhone.startsWith('+')) {
-      formattedPhone = `+${formattedPhone}`
-    }
-
-    // First check if verification is enabled
-    const settingsDoc = await adminDb.collection('system').doc('settings').get()
-    const verificationEnabled = settingsDoc.exists 
-      ? settingsDoc.data()?.verificationEnabled !== false 
-      : true
-
-    // If verification is disabled, bypass verification
-    if (!verificationEnabled) {
-      console.log('Verification disabled - bypassing verification')
+    const { action, phoneNumber, firstName, lastName, uid, code } = await request.json()
+    
+    console.log(`Verify API called with action: ${action}, uid: ${uid}`)
+    
+    if (action === 'send') {
+      // Validation
+      if (!phoneNumber || !uid) {
+        return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      }
       
-      // If action is 'verify', mark as verified without requiring SMS
-      if (action === 'verify') {
-        if (!uid) {
-          return NextResponse.json({ error: 'Missing UID parameter' }, { status: 400 })
+      console.log(`Sending verification code for ${phoneNumber}`)
+      
+      // Generate random 6-digit code
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
+      
+      // Store the code in Firestore
+      await adminDb.collection('verification').doc(uid).update({
+        verificationCode,
+        verificationCodeSentAt: new Date().toISOString(),
+        verificationAttempts: 0
+      })
+      
+      // Log the verification code for development
+      console.log(`===================================`)
+      console.log(`VERIFICATION CODE: ${verificationCode}`)
+      console.log(`FOR PHONE: ${phoneNumber}`)
+      console.log(`===================================`)
+      
+      // Format the phone number for Twilio (E.164 format)
+      let formattedPhone = phoneNumber.replace(/\s+/g, '').replace(/[()-]/g, '');
+      if (!formattedPhone.startsWith('+')) {
+        formattedPhone = `+${formattedPhone}`;
+      }
+      
+      // Actually send the SMS if Twilio is configured
+      if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
+        try {
+          const message = await twilioClient.messages.create({
+            body: `Your Intfinex verification code is: ${verificationCode}`,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            to: formattedPhone
+          });
+          
+          console.log(`SMS sent with SID: ${message.sid}`);
+        } catch (twilioError) {
+          console.error('Twilio error:', twilioError);
+          // Continue anyway - we'll use the console log in development
         }
-        
-        // Update the user as verified without SMS
-        await adminDb.collection('verification').doc(uid).update({
-          phoneVerified: true,
-          phoneVerifiedAt: new Date().toISOString(),
-          accountStatus: 'PREMIUM',
-          _skippedVerification: true
-        })
-        
-        return NextResponse.json({ success: true, message: 'Verification bypassed' })
+      } else {
+        console.log('Twilio not configured - skipping actual SMS sending');
       }
       
-      // If action is 'send', just return success without sending SMS
-      if (action === 'send') {
-        return NextResponse.json({ success: true, message: 'Verification bypassed' })
-      }
+      return NextResponse.json({ success: true })
     }
     
-    // Regular verification flow continues below for when SMS verification is enabled
     if (action === 'verify') {
-      console.log('Verifying code...')
-      const storedData = global.verificationCodes?.get(formattedPhone)
+      // Validation
+      if (!code || !uid) {
+        return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      }
       
-      if (!storedData || storedData.code !== code) {
-        console.log('Invalid code. Expected:', storedData?.code, 'Got:', code)
+      console.log(`Verifying code for uid: ${uid}`)
+      
+      // Get user doc
+      const userDoc = await adminDb.collection('verification').doc(uid).get()
+      if (!userDoc.exists) {
+        console.error('User document not found')
+        return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      }
+      
+      const userData = userDoc.data()
+      
+      // Check verification code
+      if (userData?.verificationCode !== code) {
+        console.error('Invalid verification code')
+        
+        // Increment attempt counter
+        await adminDb.collection('verification').doc(uid).update({
+          verificationAttempts: (userData?.verificationAttempts || 0) + 1
+        })
+        
         return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 })
       }
-
-      try {
-        // Update the user's phone number in Firebase Auth
-        await adminAuth.updateUser(uid, {
-          phoneNumber: formattedPhone,
-          emailVerified: false // Ensure email starts as unverified
-        })
-
-        // Send verification email
-        const user = await adminAuth.getUser(uid)
-        if (user.email) {
-          await adminAuth.generateEmailVerificationLink(user.email)
-          // Send the verification email using your email service
-          await sendVerificationEmail(user.email)
-        }
-
-        // Get next user ID
-        const userId = await getNextUserId()
-        console.log('Got next user ID:', userId)
-
-        // Create verification document with phone number
-        await db.collection('verification').doc(uid).set({
-          accountStatus: 'PREMIUM',
-          emailVerified: false,
-          uid: uid,
-          registrationDate: new Date().toISOString(),
-          userId: userId,
-          products: "Information",
-          securityLevel: "Password",
-          documents: "N/A",
-          accountAgent: "N/A",
-          dateOfBirth: "N/A",
-          nationality: "N/A",
-          email: storedData.userData.email || "N/A",
-          displayName: `${firstName} ${lastName}`,
-          phoneNumber: formattedPhone
-        })
-
-        console.log('Verification document created')
-
-        // Generate custom token
-        const customToken = await adminAuth.createCustomToken(uid)
-        
-        // Clean up verification code
-        global.verificationCodes.delete(formattedPhone)
-
-        return NextResponse.json({ 
-          status: 'success',
-          customToken,
-          requireEmailVerification: true
-        })
-      } catch (error) {
-        console.error('Verification error:', error)
-        return NextResponse.json({ error: 'Failed to verify user' }, { status: 500 })
-      }
+      
+      // Update verification status
+      await adminDb.collection('verification').doc(uid).update({
+        phoneVerified: true,
+        phoneVerifiedAt: new Date().toISOString(),
+        mailAndSmsVerification: true,
+        verificationCodeVerified: true
+      })
+      
+      console.log(`Verification successful for uid: ${uid}`)
+      
+      return NextResponse.json({ success: true })
     }
-
-    if (action === 'send') {
-      try {
-        // Check if user already exists
-        try {
-          const existingUser = await adminAuth.getUserByPhoneNumber(formattedPhone)
-          if (existingUser) {
-            return NextResponse.json({ 
-              error: 'User already exists',
-              details: 'This phone number is already registered'
-            }, { status: 400 })
-          }
-        } catch (error) {
-          // User not found, which is what we want for registration
-        }
-
-        const verificationCode = generateVerificationCode()
-        console.log('Generated verification code:', verificationCode)
-
-        global.verificationCodes = global.verificationCodes || new Map()
-        global.verificationCodes.set(formattedPhone, {
-          code: verificationCode,
-          timestamp: Date.now(),
-          userData: { firstName, lastName, email }
-        })
-
-        await client.messages.create({
-          body: `Your Intfinex verification code is: ${verificationCode}`,
-          to: formattedPhone,
-          from: process.env.TWILIO_PHONE_NUMBER
-        })
-
-        return NextResponse.json({ status: 'success' })
-      } catch (error) {
-        console.error('Send code error:', error)
-        return NextResponse.json({ error: 'Failed to send verification code' }, { status: 500 })
-      }
-    }
-
-    if (action === 'verify-status') {
-      try {
-        const { uid } = body
-        
-        if (!uid) {
-          return NextResponse.json({ error: 'Missing UID' }, { status: 400 })
-        }
-        
-        console.log('Verification request for uid:', uid)
-        
-        // Check the document before update
-        const beforeDoc = await adminDb.collection('verification').doc(uid).get()
-        console.log('Before verification update:', beforeDoc.exists ? beforeDoc.data() : 'No document')
-        
-        // This might be the issue - setting verified to true automatically
-        // Let's log this operation explicitly
-        console.log('⚠️ ATTENTION: Setting verified status for user:', uid)
-        
-        await adminDb.collection('verification').doc(uid).update({
-          phoneVerified: true,
-          phoneVerifiedAt: new Date().toISOString(),
-          accountStatus: 'PREMIUM'
-        })
-        
-        // Check after update
-        const afterDoc = await adminDb.collection('verification').doc(uid).get()
-        console.log('After verification update:', afterDoc.exists ? afterDoc.data() : 'No document')
-        
-        return NextResponse.json({ success: true })
-      } catch (error) {
-        console.error('Error in verification process:', error)
-        return NextResponse.json({ error: 'Verification failed' }, { status: 500 })
-      }
-    }
-
+    
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
-
   } catch (error) {
-    console.error('Handler error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Verification API error:', error)
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
   }
 }
 

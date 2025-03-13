@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Anton, Roboto } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from '@/contexts/UserContext'
+import VerificationCheck from '@/components/VerificationCheck';
 
 const anton = Anton({
   weight: '400',
@@ -29,7 +30,9 @@ export default function RootLayout({
     <html lang="tr">
       <body className={`${anton.className} ${roboto.className} bg-gray-900 text-white min-h-screen`}>
         <UserProvider>
-          {children}
+          <VerificationCheck>
+            {children}
+          </VerificationCheck>
         </UserProvider>
       </body>
     </html>

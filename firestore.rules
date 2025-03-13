@@ -3,19 +3,17 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Allow users to read and write their own verification document
     match /verification/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Allow counter operations for authenticated users
+    // Allow counters operations for authenticated users
     match /counters/{counterId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
     }
     
-    // More permissive rule for the entire system collection
+    // Allow system settings to be read by any authenticated user
     match /system/{document=**} {
-      allow read, write: if true;  // Allow all operations temporarily for debugging
+      allow read: if request.auth != null;
     }
   }
 } 
