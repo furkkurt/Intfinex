@@ -23,13 +23,20 @@ export async function POST(request: Request) {
       // Error means user not found, which is what we want
     }
 
-    // Check phone number
+    // Check phone number - ensure this block is properly executed
     try {
-      const userByPhone = await adminAuth.getUserByPhoneNumber(formattedPhone)
+      // Add explicit logging to debug
+      console.log(`Validating phone number: ${formattedPhone}`);
+      
+      const userByPhone = await adminAuth.getUserByPhoneNumber(formattedPhone);
+      console.log('Found existing user with phone:', userByPhone?.uid);
+      
       if (userByPhone) {
-        errors.phoneNumber = 'Phone number already in use'
+        errors.phoneNumber = 'Phone number already in use';
       }
     } catch (error) {
+      // Log the error type to confirm it's the expected "user-not-found" error
+      console.log('Phone lookup error (expected if new):', error.code || error.message);
       // Error means user not found, which is what we want
     }
 

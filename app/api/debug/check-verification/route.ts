@@ -4,7 +4,7 @@ import { adminDb } from '@/lib/firebase-admin'
 export async function GET(request: Request) {
   try {
     // Get all verification documents
-    const snapshot = await adminDb.collection('verification').get();
+    const snapshot = await adminDb.collection('users').get();
     
     // Analyze the verified field values
     const results = snapshot.docs.map(doc => {

@@ -20,18 +20,18 @@ export async function POST(request: Request) {
     }
     
     // Check document before making any changes
-    const beforeDoc = await adminDb.collection('verification').doc(uid).get()
+    const beforeDoc = await adminDb.collection('users').doc(uid).get()
     console.log('Before verification completion:', beforeDoc.exists ? beforeDoc.data() : null)
     
     // Update document with admin privileges
-    await adminDb.collection('verification').doc(uid).update({
+    await adminDb.collection('users').doc(uid).update({
       phoneVerified: true,
       phoneVerifiedAt: new Date().toISOString(),
       verified: false // Explicitly set to false
     })
     
     // Verify the update
-    const afterDoc = await adminDb.collection('verification').doc(uid).get()
+    const afterDoc = await adminDb.collection('users').doc(uid).get()
     console.log('After verification completion:', afterDoc.exists ? afterDoc.data() : null)
     
     return NextResponse.json({ success: true })

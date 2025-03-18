@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     }
 
     // Delete from Firestore
-    await adminDb.collection('verification').doc(userId).delete()
+    await adminDb.collection('users').doc(userId).delete()
 
     return NextResponse.json({ success: true })
   } catch (error) {

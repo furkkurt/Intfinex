@@ -12,18 +12,18 @@ export async function POST(request: Request) {
     console.log('Fixing verified status for user:', uid)
     
     // Check before
-    const beforeDoc = await adminDb.collection('verification').doc(uid).get()
+    const beforeDoc = await adminDb.collection('users').doc(uid).get()
     console.log('Before fix:', beforeDoc.exists ? beforeDoc.data() : null)
     
     // Force update
-    await adminDb.collection('verification').doc(uid).update({
+    await adminDb.collection('users').doc(uid).update({
       verified: false,
       _fixedAt: new Date().toISOString(),
       _fixReason: 'Auto-corrected verified status'
     })
     
     // Check after
-    const afterDoc = await adminDb.collection('verification').doc(uid).get()
+    const afterDoc = await adminDb.collection('users').doc(uid).get()
     console.log('After fix:', afterDoc.exists ? afterDoc.data() : null)
     
     return NextResponse.json({ success: true })

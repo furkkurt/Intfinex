@@ -19,7 +19,7 @@ export async function GET() {
     });
     
     // Get all verification documents that have verified=true
-    const snapshot = await adminDb.collection('verification')
+    const snapshot = await adminDb.collection('users')
       .where('verified', '==', true)
       .get();
     

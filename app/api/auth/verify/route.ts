@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
       
       // Store the code in Firestore
-      await adminDb.collection('verification').doc(uid).update({
+      await adminDb.collection('users').doc(uid).update({
         verificationCode,
         verificationCodeSentAt: new Date().toISOString(),
         verificationAttempts: 0
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
       console.log(`Verifying code for uid: ${uid}`)
       
       // Get user doc
-      const userDoc = await adminDb.collection('verification').doc(uid).get()
+      const userDoc = await adminDb.collection('users').doc(uid).get()
       if (!userDoc.exists) {
         console.error('User document not found')
         return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
         console.error('Invalid verification code')
         
         // Increment attempt counter
-        await adminDb.collection('verification').doc(uid).update({
+        await adminDb.collection('users').doc(uid).update({
           verificationAttempts: (userData?.verificationAttempts || 0) + 1
         })
         
@@ -138,7 +138,7 @@ export async function POST(request: Request) {
       }
       
       // Update verification status
-      await adminDb.collection('verification').doc(uid).update({
+      await adminDb.collection('users').doc(uid).update({
         phoneVerified: true,
         phoneVerifiedAt: new Date().toISOString(),
         mailAndSmsVerification: true,

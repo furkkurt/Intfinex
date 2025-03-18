@@ -7,12 +7,12 @@ export async function GET() {
     console.log('Checking for Firebase triggers or functions...')
     
     // Get list of users with verified=true
-    const verifiedUsers = await adminDb.collection('verification')
+    const verifiedUsers = await adminDb.collection('users')
       .where('verified', '==', true)
       .get()
     
     // Get users with phoneVerified but not verified
-    const phoneVerifiedUsers = await adminDb.collection('verification')
+    const phoneVerifiedUsers = await adminDb.collection('users')
       .where('phoneVerified', '==', true)
       .where('verified', '==', false)
       .get()

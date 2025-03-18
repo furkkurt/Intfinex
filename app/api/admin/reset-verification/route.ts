@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     }
     
     // Force update the verified status to false
-    const userRef = adminDb.collection('verification').doc(userId)
+    const userRef = adminDb.collection('users').doc(userId)
     
     // First check the current value
     const doc = await userRef.get()

@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     
     // Delete from Firestore first
     try {
-      await adminDb.collection('verification').doc(uid).delete()
+      await adminDb.collection('users').doc(uid).delete()
       console.log('Deleted verification document for:', uid)
     } catch (error) {
       console.error('Error deleting verification document:', error)

@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       console.log(`🚨 EMERGENCY FIX for ${uid} from ${source}`)
       
       try {
-        const docRef = adminDb.collection('verification').doc(uid)
+        const docRef = adminDb.collection('users').doc(uid)
         const doc = await docRef.get()
         
         console.log('Current state:', doc.exists ? doc.data() : 'No document')

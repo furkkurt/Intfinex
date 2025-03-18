@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     }
 
     // Check the current state before update
-    const beforeDoc = await adminDb.collection('verification').doc(userId).get();
+    const beforeDoc = await adminDb.collection('users').doc(userId).get();
     console.log('Document before update:', beforeDoc.exists ? beforeDoc.data() : 'No document');
     
     // Convert 'verified' to explicit boolean value if it exists
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     // Check if uniqueId is being updated and is not N/A
     if (updates.uniqueId && updates.uniqueId !== 'N/A') {
       // Check if this uniqueId already exists for another user
-      const existingUsers = await adminDb.collection('verification')
+      const existingUsers = await adminDb.collection('users')
         .where('uniqueId', '==', updates.uniqueId)
         .get()
       
@@ -48,10 +48,10 @@ export async function POST(request: Request) {
     }
 
     // Update Firestore
-    await adminDb.collection('verification').doc(userId).update(updates);
+    await adminDb.collection('users').doc(userId).update(updates);
     
     // Verify the update worked
-    const afterDoc = await adminDb.collection('verification').doc(userId).get();
+    const afterDoc = await adminDb.collection('users').doc(userId).get();
     console.log('Document after update:', afterDoc.exists ? afterDoc.data() : 'No document');
 
     return NextResponse.json({ success: true })

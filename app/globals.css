@@ -22,3 +22,31 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Phone input override styles */
+.react-tel-input .form-control {
+  width: 100% !important;
+  background-color: #222 !important;
+  color: white !important;
+  border-color: #4B5563 !important;
+  border-radius: 0.5rem !important;
+}
+
+.react-tel-input .selected-flag {
+  background-color: #222 !important;
+  border-color: #4B5563 !important;
+  border-radius: 0.5rem 0 0 0.5rem !important;
+}
+
+.react-tel-input .country-list {
+  background-color: #222 !important;
+  color: white !important;
+}
+
+.react-tel-input .country-list .country:hover {
+  background-color: #333 !important;
+}
+
+.react-tel-input .country-list .country.highlight {
+  background-color: #333 !important;
+}

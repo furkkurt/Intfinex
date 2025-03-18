@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, FormEvent } from 'react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { getFirestore, doc, collection, updateDoc, getDoc } from 'firebase/firestore'
@@ -43,6 +43,10 @@ export default function AdminPanel() {
   // New state variables
   const [verificationEnabled, setVerificationEnabled] = useState(true)
   const [isTogglingVerification, setIsTogglingVerification] = useState(false)
+  
+  // Add these missing state variables
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [success, setSuccess] = useState('')
   
   const db = getFirestore();
 
@@ -224,83 +228,87 @@ export default function AdminPanel() {
     setEditFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  const handleUpdateUser = async (e: React.FormEvent) => {
+  const handleEditFormSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    setIsSubmitting(true)
+    setSuccess('')
     
-    if (!editingUser) return
+    // Add null check to prevent errors
+    if (!editingUser) {
+      setIsSubmitting(false)
+      return
+    }
     
     try {
-      setError('')
-      setPasswordError('')
-      
-      // Check if password should be updated
-      if (editFormData.password && editFormData.password.length > 0) {
-        // Validate password
-        if (editFormData.password.length < 6) {
-          setPasswordError('Password must be at least 6 characters')
-          return
-        }
-        
-        // Call the password reset API
-        const passwordResponse = await fetch('/api/admin/reset-password', {
+      // Check if email is being updated
+      if (editFormData.email !== editingUser.email) {
+        // If email is being changed, use the dedicated email update endpoint
+        const emailUpdateResponse = await fetch('/api/admin/update-email', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
+            uid: editingUser.id,
+            newEmail: editFormData.email,
+          }),
+        });
+        
+        const emailUpdateData = await emailUpdateResponse.json();
+        
+        if (!emailUpdateData.success) {
+          throw new Error(emailUpdateData.error || 'Failed to update email');
+        }
+        
+        console.log('Email updated successfully via dedicated endpoint');
+      }
+      
+      // Handle password update if provided
+      if (editFormData.password && editFormData.password.length >= 6) {
+        // Call the password reset API
+        const passwordUpdateResponse = await fetch('/api/admin/reset-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
             uid: editingUser.id,
             newPassword: editFormData.password
           }),
-        })
+        });
         
-        if (!passwordResponse.ok) {
-          const passwordData = await passwordResponse.json()
-          throw new Error(passwordData.error || 'Failed to update password')
+        if (!passwordUpdateResponse.ok) {
+          const passwordData = await passwordUpdateResponse.json();
+          setPasswordError(passwordData.error || 'Failed to update password');
+          setIsSubmitting(false);
+          return;
         }
         
-        setPasswordSuccess('Password updated successfully')
+        setPasswordSuccess('Password updated successfully');
       }
       
-      // Create a copy of editFormData without the password field
-      const { password, ...updateData } = editFormData
+      // Continue with updating other user fields in Firestore
+      const userDocRef = doc(db, 'users', editingUser.id);
       
-      // Update user profile data
-      const response = await fetch('/api/admin/update-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          userId: editingUser.id, 
-          updates: updateData 
-        }),
-      })
-      
-      // Check for specific error about uniqueId
-      if (!response.ok) {
-        const errorData = await response.json()
-        
-        // Check if this is a uniqueId conflict error
-        if (errorData.error && errorData.error.includes('Unique ID is already in use')) {
-          setError('This Unique ID is already assigned to another user')
-        } else {
-          throw new Error(errorData.error || 'Failed to update user')
-        }
-        return // Don't close modal if there's an error
+      // Create an update object without the email and password fields
+      const { password, ...updateData } = editFormData;
+      if (editFormData.email !== editingUser.email) {
+        // Don't update email again in this operation
+        delete updateData.email;
       }
       
-      // Update local state
-      setUsers(users.map(user => 
-        user.id === editingUser.id ? { ...user, ...updateData } : user
-      ))
+      await updateDoc(userDocRef, updateData);
       
-      // Close modal after success
-      setShowEditModal(false)
+      setSuccess('User updated successfully');
+      setShowEditModal(false);
+      fetchUsers(); // Refresh user list
     } catch (error) {
-      console.error('Error updating user:', error)
-      setError(error instanceof Error ? error.message : 'Failed to update user')
+      console.error('Error updating user:', error);
+      setError('Failed to update user: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -316,6 +324,50 @@ export default function AdminPanel() {
   const handleLogout = () => {
     setIsAuthenticated(false)
     localStorage.removeItem('adminAuth')
+  }
+
+  // Add this new function after handleLogin and before handleEditInputChange
+  const handleTestEmail = async () => {
+    try {
+      setError('') // Clear any previous errors
+      
+      // Call the test email API
+      const response = await fetch('/api/auth/test-email')
+      const data = await response.json()
+      
+      if (data.success) {
+        alert(`Test email sent successfully! Message ID: ${data.messageId}`)
+      } else {
+        setError(`Failed to send test email: ${data.error}`)
+      }
+    } catch (err) {
+      console.error('Error sending test email:', err)
+      setError('Failed to send test email')
+    }
+  }
+
+  // Add this new function after handleTestEmail
+  const handleTestSMS = async () => {
+    try {
+      setError('') // Clear any previous errors
+      
+      // Get a phone number
+      const phoneNumber = prompt('Enter phone number with country code (e.g. +1234567890):');
+      if (!phoneNumber) return;
+      
+      // Call the test SMS API
+      const response = await fetch(`/api/auth/test-sms?phone=${encodeURIComponent(phoneNumber)}`)
+      const data = await response.json()
+      
+      if (data.success) {
+        alert(`Test SMS sent successfully! Message SID: ${data.messageSid}`)
+      } else {
+        setError(`Failed to send test SMS: ${data.error}`)
+      }
+    } catch (err) {
+      console.error('Error sending test SMS:', err)
+      setError('Failed to send test SMS')
+    }
   }
 
   // Instead of directly returning the admin panel, now we check auth first
@@ -405,6 +457,41 @@ export default function AdminPanel() {
               : 'Verification is disabled - SMS and email verification will be skipped'}
           </div>
         </div>
+        
+        {isAuthenticated && (
+          <div className="max-w-6xl mx-auto px-4 py-8">
+            <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
+              <h1 className="text-3xl font-bold text-white">Admin Panel</h1>
+              
+              <div className="flex gap-4">
+                <button
+                  onClick={toggleVerification}
+                  disabled={isTogglingVerification}
+                  className={`px-4 py-2 rounded-lg ${
+                    verificationEnabled ? 'bg-green-600' : 'bg-red-600'
+                  } text-white`}
+                >
+                  {isTogglingVerification ? 'Updating...' : 
+                   verificationEnabled ? 'Verification Enabled' : 'Verification Disabled'}
+                </button>
+                
+                <button
+                  onClick={handleTestEmail}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Send Test Email
+                </button>
+                
+                <button
+                  onClick={handleTestSMS}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                >
+                  Send Test SMS
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {loading ? (
           <div className="text-white">Loading users...</div>
@@ -499,7 +586,7 @@ export default function AdminPanel() {
           <div className="bg-[#111] rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-white mb-4">Edit User: {editingUser.fullName || 'N/A'}</h2>
             
-            <form onSubmit={handleUpdateUser} className="space-y-4">
+            <form onSubmit={handleEditFormSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">

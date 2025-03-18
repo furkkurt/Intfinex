@@ -12,7 +12,7 @@ export function useVerificationStatus() {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         // Listen to the verification document
-        const verificationDoc = doc(db, 'verification', user.uid)
+        const verificationDoc = doc(db, 'users', user.uid)
         const unsubscribeDoc = onSnapshot(verificationDoc, (doc) => {
           if (doc.exists()) {
             // Read the verified status from the document data

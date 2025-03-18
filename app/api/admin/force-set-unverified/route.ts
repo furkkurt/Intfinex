@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     console.log('🔴 ADDING VERIFIED=FALSE for user:', uid)
     
     // Check current document
-    const docRef = adminDb.collection('verification').doc(uid)
+    const docRef = adminDb.collection('users').doc(uid)
     const doc = await docRef.get()
     
     console.log('Current document:', doc.exists ? doc.data() : 'No document')

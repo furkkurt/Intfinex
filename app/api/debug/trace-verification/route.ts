@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const now = new Date().toISOString()
     
     // Mark this document for tracing
-    await adminDb.collection('verification').doc(userId).update({
+    await adminDb.collection('users').doc(userId).update({
       _traceEnabled: true,
       _traceStartedAt: now,
       _verifiedAtTraceStart: false // We'll set this to the actual current verified value

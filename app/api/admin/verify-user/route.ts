@@ -22,17 +22,17 @@ export async function POST(req: NextRequest) {
     console.log('AdminPanel: Normalized verified value:', verifiedValue)
 
     // First check the document
-    const beforeDoc = await adminDb.collection('verification').doc(userId).get()
+    const beforeDoc = await adminDb.collection('users').doc(userId).get()
     console.log('AdminPanel: Before update:', beforeDoc.exists ? beforeDoc.data()?.verified : null)
 
-    await adminDb.collection('verification').doc(userId).update({
+    await adminDb.collection('users').doc(userId).update({
       verified: verifiedValue,
       lastAdminUpdate: new Date().toISOString(),
       updatedBy: 'admin'
     })
 
     // Verify the update
-    const afterDoc = await adminDb.collection('verification').doc(userId).get()
+    const afterDoc = await adminDb.collection('users').doc(userId).get()
     console.log('AdminPanel: After update:', afterDoc.exists ? afterDoc.data()?.verified : null)
 
     return NextResponse.json({ success: true })

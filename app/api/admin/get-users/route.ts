@@ -10,7 +10,7 @@ interface AuthData {
 export async function GET() {
   try {
     // Fetch all users from the verification collection
-    const snapshot = await adminDb.collection('verification').get()
+    const snapshot = await adminDb.collection('users').get()
     
     if (snapshot.empty) {
       return NextResponse.json({ users: [] })

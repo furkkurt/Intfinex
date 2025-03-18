@@ -69,7 +69,7 @@ function Dashboard() {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
-        const verificationDoc = doc(db, 'verification', user.uid)
+        const verificationDoc = doc(db, 'users', user.uid)
         const unsubscribeDoc = onSnapshot(verificationDoc, (doc) => {
           if (doc.exists()) {
             const data = doc.data()
@@ -103,7 +103,7 @@ function Dashboard() {
       if (user) {
         try {
           const db = getFirestore()
-          const userDocRef = doc(db, 'verification', user.uid)
+          const userDocRef = doc(db, 'users', user.uid)
           
           // Check current verification status
           const docSnap = await getDoc(userDocRef)
@@ -130,7 +130,7 @@ function Dashboard() {
         const user = auth.currentUser;
         if (!user) return;
         
-        const userDocRef = doc(db, 'verification', user.uid);
+        const userDocRef = doc(db, 'users', user.uid);
         const docSnap = await getDoc(userDocRef);
         
         if (!docSnap.exists()) return;
@@ -188,15 +188,44 @@ function Dashboard() {
     fixNewUserVerificationStatus();
   }, []);
 
-  const handleSubmitTicket = (e: React.FormEvent) => {
-    e.preventDefault()
-    // This will be non-functioning for now, just close the modal
-    setShowTicketModal(false)
-    setTicketSubject('')
-    setTicketMessage('')
-    // Show a confirmation message
-    alert('Your ticket has been submitted.')
-  }
+  const handleSubmitTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!ticketSubject.trim() || !ticketMessage.trim()) {
+      // Add validation feedback if needed
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/support/submit-ticket', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          subject: ticketSubject,
+          message: ticketMessage,
+          userEmail: userDetails?.email,
+          userName: userDetails?.displayName,
+          userId: auth.currentUser?.uid
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        alert('Your support ticket has been submitted. We will get back to you soon.');
+        setTicketSubject('');
+        setTicketMessage('');
+        setShowTicketModal(false);
+      } else {
+        alert('Failed to submit support ticket. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error submitting ticket:', error);
+      alert('An error occurred while submitting your ticket. Please try again.');
+    }
+  };
 
   return (
     <AuthenticatedLayout>

@@ -14,14 +14,14 @@ export async function POST(request: Request) {
     console.log('Phone verification request for uid:', uid)
     
     // IMPORTANT: Do NOT set the main verified flag here
-    await adminDb.collection('verification').doc(uid).update({
+    await adminDb.collection('users').doc(uid).update({
       phoneVerificationComplete: true, // Use a different field
       phoneVerifiedAt: new Date().toISOString(),
       // Do not include the verified field here
     })
     
     // Check after update
-    const afterDoc = await adminDb.collection('verification').doc(uid).get()
+    const afterDoc = await adminDb.collection('users').doc(uid).get()
     console.log('After phone verification:', afterDoc.exists ? afterDoc.data() : 'No document')
     
     return NextResponse.json({ success: true })

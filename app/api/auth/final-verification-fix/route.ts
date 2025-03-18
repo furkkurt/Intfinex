@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     console.log('FINAL VERIFICATION FIX started for user:', uid, 'at', timestamp)
     
     // Check status before delay
-    const beforeDoc = await adminDb.collection('verification').doc(uid).get()
+    const beforeDoc = await adminDb.collection('users').doc(uid).get()
     console.log('Before delay:', beforeDoc.exists ? 
       { verified: beforeDoc.data()?.verified, _initiallySetTo: beforeDoc.data()?._initiallySetTo } : 
       'No document')
@@ -25,13 +25,13 @@ export async function POST(request: Request) {
     await delay(1000);
     
     // Check status after delay but before update
-    const midDoc = await adminDb.collection('verification').doc(uid).get()
+    const midDoc = await adminDb.collection('users').doc(uid).get()
     console.log('After delay, before update:', midDoc.exists ? 
       { verified: midDoc.data()?.verified } : 
       'No document')
     
     // Force update with admin privileges
-    await adminDb.collection('verification').doc(uid).update({
+    await adminDb.collection('users').doc(uid).update({
       verified: false,
       _finalFixApplied: true,
       _finalFixTimestamp: timestamp,
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     })
     
     // Verify update was successful
-    const afterDoc = await adminDb.collection('verification').doc(uid).get()
+    const afterDoc = await adminDb.collection('users').doc(uid).get()
     console.log('After final fix:', afterDoc.exists ? 
       { verified: afterDoc.data()?.verified, _finalFixApplied: afterDoc.data()?._finalFixApplied } : 
       'No document')

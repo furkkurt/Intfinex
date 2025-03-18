@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow users to read and write their own user document
+    match /users/{userId} {
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow read, update: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow users to read and write their own verification document
+    match /verification/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow counters operations for authenticated users
+    match /counters/{counterId} {
+      allow read: if request.auth != null;
+    }
+    
+    // Allow system settings to be read by any authenticated user
+    match /system/{document=**} {
+      allow read: if request.auth != null;
+    }
+  }
+} 

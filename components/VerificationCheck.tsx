@@ -30,7 +30,7 @@ export default function VerificationCheck({ children }: { children: React.ReactN
       if (pathname === '/' || pathname.startsWith('/dashboard')) {
         try {
           // Check if user has completed verification
-          const userDocRef = doc(db, 'verification', user.uid)
+          const userDocRef = doc(db, 'users', user.uid)
           const docSnap = await getDoc(userDocRef)
           
           if (docSnap.exists()) {

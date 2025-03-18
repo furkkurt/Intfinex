@@ -3,7 +3,7 @@ import { adminDb } from '@/lib/firebase-admin'
 
 export async function POST() {
   try {
-    const snapshot = await adminDb.collection('verification').get()
+    const snapshot = await adminDb.collection('users').get()
     
     let updatedCount = 0
     let errorCount = 0
