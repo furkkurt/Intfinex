@@ -2,15 +2,19 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import AdminEmailUpdate from '@/components/AdminEmailUpdate'
-import { adminDb } from '@/lib/firebase-admin-client' // Create this if needed
 
 export default function UserDetailPage() {
   const params = useParams()
-  const userId = params.id as string
+  const userId = params?.id as string
   const [userData, setUserData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   
   useEffect(() => {
+    if (!userId) {
+      setLoading(false)
+      return
+    }
+    
     const fetchUserData = async () => {
       try {
         const response = await fetch(`/api/admin/get-user?id=${userId}`)
