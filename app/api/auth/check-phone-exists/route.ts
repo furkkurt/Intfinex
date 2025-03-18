@@ -20,9 +20,16 @@ export async function POST(request: Request) {
       // If we get here, a user with this phone exists
       console.log('Phone number already exists for user:', userByPhone.uid)
       return NextResponse.json({ exists: true, uid: userByPhone.uid })
-    } catch (error) {
+    } catch (error: unknown) {
       // If error is user-not-found, phone is available
-      console.log('Phone check error (good if user-not-found):', error.code || error.message)
+      // Fix: Type guard to safely access error properties
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : typeof error === 'object' && error !== null && 'code' in error
+          ? (error as { code: string }).code
+          : 'Unknown error';
+          
+      console.log('Phone check error (good if user-not-found):', errorMessage)
       return NextResponse.json({ exists: false })
     }
   } catch (error) {
