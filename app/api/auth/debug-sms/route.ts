@@ -85,23 +85,28 @@ export async function POST(request: Request) {
         code: verificationCode,
         message: 'Debug SMS sent successfully'
       });
-    } catch (twilioError) {
-      console.error('Twilio error in debug endpoint:', twilioError);
+    } catch (twilioError: unknown) {
+      console.error('Twilio error:', twilioError);
       
-      // Record failure in Firestore if UID is provided
-      if (uid) {
-        await adminDb.collection('users').doc(uid).update({
-          smsSendAttempted: true,
-          smsSendSuccessful: false,
-          smsSendError: twilioError.message,
-          debugSmsSent: false,
-          debugSmsError: twilioError.message
-        });
-      }
+      // Get error message safely with type checking
+      const errorMessage = twilioError instanceof Error 
+        ? twilioError.message 
+        : typeof twilioError === 'object' && twilioError !== null && 'message' in twilioError
+          ? (twilioError as { message: string }).message
+          : 'Unknown error';
+      
+      // Update user records
+      await adminDb.collection('users').doc(uid).update({
+        smsSendAttempted: true,
+        smsSendSuccessful: false,
+        smsSendError: errorMessage,
+        debugSmsSent: false,
+        debugSmsError: errorMessage
+      });
       
       return NextResponse.json({
         success: false,
-        error: twilioError.message,
+        error: errorMessage,
         code: verificationCode // Return the code anyway for testing
       }, { status: 500 });
     }
