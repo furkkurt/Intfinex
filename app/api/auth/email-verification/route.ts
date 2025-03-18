@@ -148,7 +148,7 @@ export async function POST(request: Request) {
             
             // Still update the attempts counter
             await adminDb.collection('users').doc(uid).update({
-              emailVerificationAttempts: (userData.emailVerificationAttempts || 0) + 1,
+              emailVerificationAttempts: ((userData?.emailVerificationAttempts ?? 0) + 1),
               _debugNotes: `Attempted with: ${submittedStr}, stored was: ${storedStr}`
             });
             
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
           } else {
             // In production, fail as normal
             await adminDb.collection('users').doc(uid).update({
-              emailVerificationAttempts: (userData.emailVerificationAttempts || 0) + 1
+              emailVerificationAttempts: ((userData?.emailVerificationAttempts ?? 0) + 1)
             });
             
             return NextResponse.json({ 
@@ -175,7 +175,7 @@ export async function POST(request: Request) {
         console.log('Verification code matched successfully!');
         
         // Check if the code is expired (30 minutes)
-        const sentAt = new Date(userData.emailVerificationSentAt).getTime()
+        const sentAt = new Date(userData?.emailVerificationSentAt ?? new Date().toISOString()).getTime()
         const now = Date.now()
         const thirtyMinutesInMs = 30 * 60 * 1000
         

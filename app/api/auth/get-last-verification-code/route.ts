@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     const data = doc.data();
     
     // Log but don't expose full code in production
-    if (process.env.NODE_ENV === 'production') {
+    if ((process.env.NODE_ENV as string) === 'production') {
       console.log(`Verification code for ${uid} was requested`);
       return NextResponse.json({ 
         message: 'Verification codes are not exposed in production',
