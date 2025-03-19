@@ -10,14 +10,20 @@ export default function NetworkDebugger() {
     
     // Intercept XHR requests
     const originalXHROpen = XMLHttpRequest.prototype.open
-    XMLHttpRequest.prototype.open = function(method, url, ...args) {
+    XMLHttpRequest.prototype.open = function(
+      method: string,
+      url: string | URL,
+      async: boolean = true,
+      username?: string | null,
+      password?: string | null
+    ) {
       // Add event listener to track responses
       this.addEventListener('load', function() {
         console.log(`📡 XHR ${method} ${url} - Status: ${this.status}`)
       })
       
       // Call original method
-      return originalXHROpen.apply(this, [method, url, ...args])
+      return originalXHROpen.call(this, method, url, async, username, password)
     }
     
     // Intercept fetch requests
