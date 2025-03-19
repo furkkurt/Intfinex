@@ -42,13 +42,24 @@ export async function GET(request: Request) {
         success: true, 
         messageSid: message.sid 
       });
-    } catch (twilioError) {
+    } catch (twilioError: unknown) {
       console.error('Twilio API error:', twilioError);
+      
+      // Safe type checking before accessing properties
+      const errorMessage = twilioError instanceof Error 
+        ? twilioError.message 
+        : typeof twilioError === 'object' && twilioError !== null && 'message' in twilioError
+          ? (twilioError as { message: string }).message
+          : 'Unknown Twilio error';
+          
+      const errorCode = typeof twilioError === 'object' && twilioError !== null && 'code' in twilioError
+        ? (twilioError as { code: string }).code
+        : undefined;
       
       return NextResponse.json({ 
         success: false, 
-        error: twilioError.message || 'Unknown Twilio error',
-        twilioErrorCode: twilioError.code
+        error: errorMessage,
+        twilioErrorCode: errorCode
       }, { status: 500 });
     }
   } catch (error) {
