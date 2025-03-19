@@ -57,8 +57,8 @@ export async function POST(request: Request) {
         error,
         errorMessage: error.message,
         errorName: error.name,
-        statusCode: error.statusCode,
-        errorDetails: error.details
+        statusCode: (error as any).statusCode,
+        errorDetails: (error as any).details
       });
       // Still return success if Firestore saved, email delivery is secondary
       return NextResponse.json({ 
