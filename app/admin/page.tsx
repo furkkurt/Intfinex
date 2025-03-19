@@ -4,6 +4,7 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { getFirestore, doc, collection, updateDoc, getDoc } from 'firebase/firestore'
 import { auth } from '@/firebase/config'
+import { useRouter } from 'next/navigation'
 
 interface User {
   id: string
@@ -49,6 +50,7 @@ export default function AdminPanel() {
   const [success, setSuccess] = useState('')
   
   const db = getFirestore();
+  const router = useRouter()
 
   useEffect(() => {
     fetchUsers()
@@ -287,17 +289,22 @@ export default function AdminPanel() {
         setPasswordSuccess('Password updated successfully');
       }
       
-      // Continue with updating other user fields in Firestore
-      const userDocRef = doc(db, 'users', editingUser.id);
+      // Use the API to update user data
+      const userUpdateResponse = await fetch('/api/admin/update-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          uid: editingUser.id,
+          updates: editFormData
+        }),
+      });
       
-      // Create an update object without the email and password fields
-      const { password, ...updateData } = editFormData;
-      if (editFormData.email !== editingUser.email) {
-        // Don't update email again in this operation
-        delete updateData.email;
+      if (!userUpdateResponse.ok) {
+        const errorData = await userUpdateResponse.json();
+        throw new Error(errorData.error || 'Failed to update user data');
       }
-      
-      await updateDoc(userDocRef, updateData);
       
       setSuccess('User updated successfully');
       setShowEditModal(false);
@@ -368,6 +375,10 @@ export default function AdminPanel() {
       console.error('Error sending test SMS:', err)
       setError('Failed to send test SMS')
     }
+  }
+
+  const handleViewUser = (userId: string) => {
+    router.push(`/admin/users/${userId}`)
   }
 
   // Instead of directly returning the admin panel, now we check auth first
