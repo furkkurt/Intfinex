@@ -29,8 +29,8 @@ export async function POST(request: Request) {
     if (verificationDoc.exists) {
       const data = verificationDoc.data();
       console.log('Debug API - Found verification data:', {
-        code: data.emailVerificationCode,
-        sentAt: data.emailVerificationSentAt
+        code: data?.emailVerificationCode,
+        sentAt: data?.emailVerificationSentAt
       });
     }
     
