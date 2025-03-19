@@ -2,11 +2,26 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
+interface User {
+  id: string;
+  userId?: string;
+  fullName?: string;
+  email: string;
+  phoneNumber?: string;
+  accountStatus?: string;
+  accountAgent?: string;
+  dateOfBirth?: string;
+  products?: string;
+  nationality?: string;
+  documents?: string;
+  securityLevel?: string;
+}
+
 export default function AdminPanel() {
-  const [users, setUsers] = useState([])
+  const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [editUser, setEditUser] = useState(null)
-  const [formData, setFormData] = useState({})
+  const [editUser, setEditUser] = useState<User | null>(null)
+  const [formData, setFormData] = useState<Partial<User>>({})
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState(false)
   const router = useRouter()
@@ -33,12 +48,12 @@ export default function AdminPanel() {
     }
   }
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  const handleEditUser = (user) => {
+  const handleEditUser = (user: any) => {
     console.log('Opening edit modal for user:', user)
     setEditUser(user)
     setFormData({
@@ -57,10 +72,14 @@ export default function AdminPanel() {
     setFormSuccess(false)
   }
 
-  const handleEditFormSubmit = async (e) => {
+  const handleEditFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setFormError('')
     setFormSuccess(false)
+    
+    if (!editUser) {
+      return;
+    }
     
     try {
       // Use a server API endpoint instead of direct Firestore operation
@@ -92,7 +111,7 @@ export default function AdminPanel() {
     }
   }
 
-  const handleViewUserDetails = (userId) => {
+  const handleViewUserDetails = (userId: string) => {
     router.push(`/admin/users/${userId}`)
   }
 

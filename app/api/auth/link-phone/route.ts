@@ -9,21 +9,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
     
-    // Format phone number to E.164 format
+    // Format phone number to E.164 format (international format) which Firebase requires
     let formattedPhone = phoneNumber.trim().replace(/\s+/g, '').replace(/[()-]/g, '')
     if (!formattedPhone.startsWith('+')) {
       formattedPhone = `+${formattedPhone}`
     }
     
-    // Update the user's phone number in Firebase Auth
-    await adminAuth.updateUser(uid, {
-      phoneNumber: formattedPhone
-    })
+    // Check if phone number is already in use by another account
+    try {
+      const existingUser = await adminAuth.getUserByPhoneNumber(formattedPhone)
+      if (existingUser && existingUser.uid !== uid) {
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Phone number already associated with another account'
+        }, { status: 400 })
+      }
+    } catch (error) {
+      // No user with this phone number - this is expected
+    }
     
-    // Ensure the phone number is also updated in Firestore
+    // Update the user's phone number in Firebase Auth
+    try {
+      await adminAuth.updateUser(uid, {
+        phoneNumber: formattedPhone
+      })
+      console.log(`Successfully linked phone ${formattedPhone.slice(-4)} to user ${uid}`)
+    } catch (authError) {
+      console.error('Error updating Auth user phone:', authError)
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Failed to update phone in Auth system'
+      }, { status: 500 })
+    }
+    
+    // Update the Firestore document
     await adminDb.collection('users').doc(uid).update({
       phoneNumber: formattedPhone,
-      phoneLinkedToAuth: true
+      phoneLinkedToAuth: true,
+      phoneUpdatedAt: new Date().toISOString()
     })
     
     return NextResponse.json({ success: true })

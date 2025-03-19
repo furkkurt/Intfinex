@@ -1,10 +1,24 @@
 'use client'
 import { useEffect } from 'react'
 
+// Add type declaration for window.firebase
+declare global {
+  interface Window {
+    firebase: any; // You can make this more specific if needed
+  }
+}
+
+interface FirestoreDoc {
+  path: string;
+  [key: string]: any;
+}
+
 export default function FirestoreMonkeyPatch() {
   useEffect(() => {
-    // Only run in browser
     if (typeof window === 'undefined') return
+    
+    // Move declaration here so it's accessible in cleanup
+    const originalDefineProperty = Object.defineProperty
     
     console.log('🔧 Installing deep Firestore monkey patch')
     
@@ -15,7 +29,7 @@ export default function FirestoreMonkeyPatch() {
         // Patch Firestore reference update
         if (window.firebase.firestore?.DocumentReference?.prototype?.update) {
           const originalUpdate = window.firebase.firestore.DocumentReference.prototype.update
-          window.firebase.firestore.DocumentReference.prototype.update = function(...args) {
+          window.firebase.firestore.DocumentReference.prototype.update = function(...args: any[]) {
             console.log('🛠️ Intercepted Firestore update on path:', this.path)
             
             // Get document ID from path
@@ -49,7 +63,7 @@ export default function FirestoreMonkeyPatch() {
         // Patch Firestore set
         if (window.firebase.firestore?.DocumentReference?.prototype?.set) {
           const originalSet = window.firebase.firestore.DocumentReference.prototype.set
-          window.firebase.firestore.DocumentReference.prototype.set = function(...args) {
+          window.firebase.firestore.DocumentReference.prototype.set = function(...args: any[]) {
             console.log('🛠️ Intercepted Firestore set on path:', this.path)
             
             // Get document ID from path
@@ -87,46 +101,47 @@ export default function FirestoreMonkeyPatch() {
       
       // Approach 2: Try to intercept dynamically
       const originalDefineProperty = Object.defineProperty
-      Object.defineProperty = function(obj, prop, descriptor) {
-        // Check if this looks like a Firestore operation
-        if (prop === 'update' && descriptor && typeof descriptor.value === 'function') {
-          console.log('🔍 Potential Firestore method detected:', prop)
-          
-          // Save original method
-          const originalMethod = descriptor.value
-          
-          // Replace with our interceptor
-          descriptor.value = function(...args) {
-            if (this && typeof this.path === 'string' && this.path.includes('/users/')) {
-              console.log('🛠️ Intercepted potential Firestore operation:', prop, 'on path:', this.path)
-              
-              // Get document ID from path
-              const pathParts = this.path.split('/')
-              const docId = pathParts[pathParts.length - 1]
-              
-              // Use API instead
-              return fetch('/api/admin/update-user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  uid: docId,
-                  updates: args[0]
-                })
-              }).then(response => response.json())
-            }
+      Object.defineProperty = (function(original) {
+        return function<T extends object>(obj: T, prop: PropertyKey, descriptor: PropertyDescriptor): T {
+          // Check if this looks like a Firestore operation
+          if (prop === 'update' && descriptor && typeof descriptor.value === 'function') {
+            console.log('🔍 Potential Firestore method detected:', prop)
             
-            // Otherwise call original
-            return originalMethod.apply(this, args)
+            // Save original method
+            const originalMethod = descriptor.value
+            
+            // Replace with our interceptor
+            descriptor.value = function(this: FirestoreDoc, ...args: any[]) {
+              if (this && typeof this.path === 'string' && this.path.includes('/users/')) {
+                console.log('🛠️ Intercepted potential Firestore operation:', prop, 'on path:', this.path)
+                
+                // Get document ID from path
+                const pathParts = this.path.split('/')
+                const docId = pathParts[pathParts.length - 1]
+                
+                // Use API instead
+                return fetch('/api/admin/update-user', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    uid: docId,
+                    updates: args[0]
+                  })
+                }).then(response => response.json())
+              }
+              
+              // Otherwise call original
+              return originalMethod.apply(this, args)
+            }
           }
+          
+          // Call original defineProperty
+          return original(obj, prop, descriptor)
         }
-        
-        // Call original defineProperty
-        return originalDefineProperty.call(this, obj, prop, descriptor)
-      }
+      })(Object.defineProperty) as typeof Object.defineProperty
     }
     
     return () => {
-      // Cleanup if needed
       if (typeof Object.defineProperty === 'function') {
         Object.defineProperty = originalDefineProperty
       }
