@@ -68,11 +68,19 @@ export async function POST(request: Request) {
           messageSid: message.sid,
           devCode: process.env.NODE_ENV === 'development' ? verificationCode : undefined
         });
-      } catch (twilioError) {
+      } catch (twilioError: unknown) {
         console.error('TWILIO ERROR:', twilioError);
+        
+        // Safe error extraction with type guards
+        const errorMessage = twilioError instanceof Error 
+          ? twilioError.message 
+          : typeof twilioError === 'object' && twilioError !== null && 'message' in twilioError
+            ? (twilioError as { message: string }).message
+            : 'Unknown Twilio error';
+        
         return NextResponse.json({ 
           success: false, 
-          error: twilioError.message
+          error: errorMessage
         }, { status: 500 });
       }
     } else if (action === 'verify') {
