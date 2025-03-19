@@ -34,9 +34,15 @@ export async function POST(request: Request) {
       if (userByPhone) {
         errors.phoneNumber = 'Phone number already in use';
       }
-    } catch (error) {
+    } catch (error: unknown) {
       // Log the error type to confirm it's the expected "user-not-found" error
-      console.log('Phone lookup error (expected if new):', error.code || error.message);
+      const errorInfo = error instanceof Error 
+        ? error.message
+        : typeof error === 'object' && error !== null && 'code' in error
+          ? (error as { code: string }).code
+          : 'unknown error';
+          
+      console.log('Phone lookup error (expected if new):', errorInfo);
       // Error means user not found, which is what we want
     }
 
