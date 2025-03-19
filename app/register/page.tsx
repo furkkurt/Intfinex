@@ -661,7 +661,7 @@ export default function Register() {
       console.log('Debug SMS response:', data);
       
       if (data.success) {
-        setMessage(`SMS sent successfully! Verification code: ${data.code}`);
+        setMessage(`SMS sent successfully!`);
         // Save the code in session storage for easy testing
         sessionStorage.setItem('dev_sms_code', data.code);
         

@@ -4,7 +4,11 @@ service cloud.firestore {
     // Allow users to read and write their own user document
     match /users/{userId} {
       allow create: if request.auth != null && request.auth.uid == userId;
-      allow read, update: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow update: if request.auth != null && 
+        (request.auth.uid == userId || 
+         request.auth.token.admin == true || 
+         exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
     }
     
     // Allow users to read and write their own verification document
@@ -20,6 +24,11 @@ service cloud.firestore {
     // Allow system settings to be read by any authenticated user
     match /system/{document=**} {
       allow read: if request.auth != null;
+    }
+    
+    // Admin collection for admin users
+    match /admins/{adminId} {
+      allow read: if request.auth != null && request.auth.uid == adminId;
     }
   }
 } 
