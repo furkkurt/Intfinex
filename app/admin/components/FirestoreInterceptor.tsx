@@ -33,7 +33,7 @@ export default function FirestoreInterceptor() {
       // This is a more drastic approach - it hooks into the actual Firebase SDK
       if (window.firebase?.firestore) {
         const originalUpdate = window.firebase.firestore.DocumentReference.prototype.update
-        window.firebase.firestore.DocumentReference.prototype.update = function(...args) {
+        window.firebase.firestore.DocumentReference.prototype.update = function(...args: any[]) {
           console.log('🛑 Intercepted Firestore update operation on path:', this.path)
           // Extract the document ID from the path
           const docId = this.id
