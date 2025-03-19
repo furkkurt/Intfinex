@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import AdminEmailUpdate from '@/components/AdminEmailUpdate'
+import AdminPhoneUpdate from '@/components/AdminPhoneUpdate'
 
 export default function UserDetailPage() {
   const params = useParams()
@@ -51,6 +52,18 @@ export default function UserDetailPage() {
         <AdminEmailUpdate 
           userId={userId} 
           currentEmail={userData.email} 
+          onSuccess={() => {
+            // Refresh data
+            window.location.reload()
+          }}
+        />
+      </div>
+      
+      <div className="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">Update Phone Number</h2>
+        <AdminPhoneUpdate 
+          userId={userId} 
+          currentPhone={userData.phoneNumber} 
           onSuccess={() => {
             // Refresh data
             window.location.reload()
