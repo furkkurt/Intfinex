@@ -3,7 +3,11 @@ import NetworkDebugger from './components/NetworkDebugger'
 import FirestoreMonkeyPatch from './components/FirestoreMonkeyPatch'
 import AdminErrorBoundary from './components/AdminErrorBoundary'
 
-export default function AdminLayout({ children }) {
+interface AdminLayoutProps {
+  children: React.ReactNode
+}
+
+export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <div>
       <FirestoreInterceptor />
