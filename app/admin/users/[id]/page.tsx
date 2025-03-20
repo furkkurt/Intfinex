@@ -51,10 +51,12 @@ export default function UserDetailPage() {
     }
   }
   
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
-  }
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev: typeof formData) => ({ ...prev, [name]: value }));
+  };
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,7 +84,9 @@ export default function UserDetailPage() {
       fetchUserData()
     } catch (error) {
       console.error('Error updating user:', error)
-      setUpdateError(error.message || 'Failed to update user')
+      setUpdateError(
+        error instanceof Error ? error.message : 'Failed to update user'
+      )
     }
   }
   
