@@ -3,10 +3,26 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminUserEditForm from '@/components/AdminUserEditForm'
 
+interface User {
+  id: string;
+  userId?: string;
+  fullName: string;
+  email: string;
+  phoneNumber?: string;
+  accountStatus?: string;
+  accountAgent?: string;
+  dateOfBirth?: string;
+  products?: string;
+  nationality?: string;
+  documents?: string;
+  securityLevel?: string;
+  // Add other user properties as needed
+}
+
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState([])
+  const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedUser, setSelectedUser] = useState(null)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -35,7 +51,7 @@ export default function AdminUsersPage() {
     }
   }
 
-  const handleEditUser = (user) => {
+  const handleEditUser = (user: User) => {
     setSelectedUser(user)
     setEditMode(true)
     setError('')
@@ -111,7 +127,7 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {users.map(user => (
+                {users.map((user: User) => (
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -177,8 +193,13 @@ export default function AdminUsersPage() {
   )
 }
 
-// A clean implementation that uses server-side API only
-function ServerAdminUserForm({ user, onSuccess, onCancel }) {
+interface ServerAdminUserFormProps {
+  user: User;
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+function ServerAdminUserForm({ user, onSuccess, onCancel }: ServerAdminUserFormProps) {
   const [formData, setFormData] = useState({
     fullName: user.fullName || '',
     email: user.email || '',
@@ -194,12 +215,14 @@ function ServerAdminUserForm({ user, onSuccess, onCancel }) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
-  }
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError('')
