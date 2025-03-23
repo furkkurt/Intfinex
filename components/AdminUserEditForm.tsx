@@ -37,7 +37,8 @@ export default function AdminUserEditForm({ user, onSuccess, onCancel }: AdminUs
     nationality: user.nationality || '',
     documents: user.documents || '',
     securityLevel: user.securityLevel || '',
-    accountStatus: user.accountStatus || ''
+    accountStatus: user.accountStatus || '',
+    uniqueId: user.uniqueId || ''
     // Add any other fields you need to edit
   })
   const [isLoading, setIsLoading] = useState(false)
