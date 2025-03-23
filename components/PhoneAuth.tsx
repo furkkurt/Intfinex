@@ -50,8 +50,8 @@ export default function PhoneAuth() {
       let formattedPhone = phoneNumber.trim()
       if (!formattedPhone.startsWith('+')) {
         formattedPhone = formattedPhone.startsWith('0') 
-          ? `+90${formattedPhone.substring(1)}` 
-          : `+90${formattedPhone}`
+          ? `${formattedPhone.substring(1)}` 
+          : `${formattedPhone}`
       }
 
       const verifier = window.recaptchaVerifier as RecaptchaVerifier
