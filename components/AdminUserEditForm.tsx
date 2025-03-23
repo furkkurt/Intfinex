@@ -49,36 +49,56 @@ export default function AdminUserEditForm({ user, onSuccess, onCancel }: AdminUs
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
+  // Add function to check uniqueId availability
+  const checkUniqueIdAvailability = async (uniqueId: string) => {
+    try {
+      const response = await fetch(`/api/admin/check-unique-id?id=${uniqueId}&userId=${user.id}`)
+      const data = await response.json()
+      return data.available
+    } catch (error) {
+      console.error('Error checking unique ID:', error)
+      return false
+    }
+  }
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError('')
     setSuccess(false)
-    
+
     try {
-      // Use server-side API for admin operations 
-      const response = await fetch('/api/admin/update-user', {
+      // If uniqueId has changed, check availability
+      if (formData.uniqueId !== user.uniqueId) {
+        const isAvailable = await checkUniqueIdAvailability(formData.uniqueId)
+        if (!isAvailable) {
+          setError('This Unique ID is already in use')
+          setIsLoading(false)
+          return
+        }
+      }
+
+      const response = await fetch('/api/admin/update-user-properties', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          uid: user.id,
-          updates: formData
+          userId: user.id,
+          formData
         })
       })
-      
+
       const data = await response.json()
-      
-      if (data.success) {
-        setSuccess(true)
-        if (onSuccess) onSuccess()
-      } else {
-        setError(data.error || 'Failed to update user')
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update user')
       }
-    } catch (err) {
-      setError('An error occurred while updating the user')
-      console.error(err)
+
+      setSuccess(true)
+      if (onSuccess) onSuccess()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to update user')
     } finally {
       setIsLoading(false)
     }

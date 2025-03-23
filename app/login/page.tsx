@@ -10,6 +10,8 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const router = useRouter()
+  const [isResettingPassword, setIsResettingPassword] = useState(false)
+  const [resetSuccess, setResetSuccess] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,6 +22,36 @@ export default function Login() {
       router.push('/')
     } catch (error) {
       setError('Invalid email or password')
+    }
+  }
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Please enter your email first')
+      return
+    }
+    
+    try {
+      setIsResettingPassword(true)
+      setError('')
+      
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to reset password')
+      }
+
+      setResetSuccess(true)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to reset password')
+    } finally {
+      setIsResettingPassword(false)
     }
   }
 
@@ -64,6 +96,23 @@ export default function Login() {
               required
             />
           </div>
+
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              disabled={isResettingPassword}
+              className="text-[#00ffd5] hover:text-[#00e6c0]"
+            >
+              {isResettingPassword ? 'Sending...' : 'Forgot Password?'}
+            </button>
+          </div>
+
+          {resetSuccess && (
+            <p className="text-green-500 text-sm text-center mt-2">
+              Check your email for your new password
+            </p>
+          )}
 
           <button
             type="submit"

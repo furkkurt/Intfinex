@@ -29,6 +29,13 @@ function Dashboard() {
   const [showTicketModal, setShowTicketModal] = useState(false)
   const [ticketSubject, setTicketSubject] = useState('')
   const [ticketMessage, setTicketMessage] = useState('')
+  const [isResettingPassword, setIsResettingPassword] = useState(false)
+  const [passwordResetSuccess, setPasswordResetSuccess] = useState(false)
+  const [passwordResetError, setPasswordResetError] = useState('')
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordError, setPasswordError] = useState('')
 
   useEffect(() => {
     const checkForPendingFix = async () => {
@@ -227,10 +234,63 @@ function Dashboard() {
     }
   };
 
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match')
+      return
+    }
+    
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters')
+      return
+    }
+    
+    try {
+      setIsResettingPassword(true)
+      setPasswordError('')
+      
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          uid: auth.currentUser?.uid,
+          newPassword 
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to change password')
+      }
+
+      setPasswordResetSuccess(true)
+      setShowPasswordModal(false)
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'Failed to change password')
+    } finally {
+      setIsResettingPassword(false)
+    }
+  }
+
   return (
     <AuthenticatedLayout>
       <div className="space-y-6">
         <div className="max-w-6xl mx-auto px-4 py-12">
+
+            <button
+              onClick={() => setShowPasswordModal(true)}
+              className="px-4 py-2 bg-[#00ffd5] text-black rounded-lg hover:bg-[#00e6c0]"
+            >
+              Change Password
+            </button>
+            {passwordResetSuccess && (
+              <p className="text-green-500 mt-2">Password changed successfully!</p>
+            )}
           <div className="bg-[#1E1E1E] rounded-3xl p-8 md:p-12">
             {userDetails && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -324,8 +384,9 @@ function Dashboard() {
               </button>
             </div>
           </div>
+
+          </div>
         </div>
-      </div>
       
       {/* Ticket Modal */}
       {showTicketModal && (
@@ -368,6 +429,60 @@ function Dashboard() {
                   className="px-4 py-2 bg-[#00ffd5] text-black rounded-lg hover:bg-[#00e6c0]"
                 >
                   Send Ticket
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Password Change Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#111] rounded-xl p-6 max-w-lg w-full">
+            <h2 className="text-xl font-bold text-white mb-4">Change Password</h2>
+            
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div>
+                <input
+                  type="password"
+                  placeholder="New Password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full bg-[#222] border border-gray-700 rounded-lg p-3 text-white focus:ring-[#00ffd5] focus:border-[#00ffd5]"
+                  required
+                />
+              </div>
+              
+              <div>
+                <input
+                  type="password"
+                  placeholder="Confirm New Password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-[#222] border border-gray-700 rounded-lg p-3 text-white focus:ring-[#00ffd5] focus:border-[#00ffd5]"
+                  required
+                />
+              </div>
+              
+              {passwordError && (
+                <p className="text-red-500 text-sm">{passwordError}</p>
+              )}
+              
+              <div className="flex justify-end gap-4">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  className="px-4 py-2 text-white hover:text-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isResettingPassword}
+                  className="px-4 py-2 bg-[#00ffd5] text-black rounded-lg hover:bg-[#00e6c0] disabled:opacity-50"
+                >
+                  {isResettingPassword ? 'Changing...' : 'Change Password'}
                 </button>
               </div>
             </form>

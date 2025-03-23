@@ -34,6 +34,7 @@ export default function Register() {
   const [message, setMessage] = useState('')
   const [timeLeft, setTimeLeft] = useState(60)
   const [phoneNumberChecked, setPhoneNumberChecked] = useState(false)
+  const [success, setSuccess] = useState('')
   const router = useRouter()
 
   useEffect(() => {

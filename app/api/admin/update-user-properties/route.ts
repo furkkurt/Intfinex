@@ -6,40 +6,59 @@ export async function POST(request: Request) {
     const { userId, formData } = await request.json()
     
     console.log('Admin panel update for user:', userId)
-    console.log('Form data:', formData)
     
-    if (!userId || !formData) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    if (!userId) {
+      return NextResponse.json({ error: 'Missing user ID' }, { status: 400 })
     }
+
+    // Extract the fields we want to update
+    const { 
+      fullName, 
+      phoneNumber, 
+      accountAgent, 
+      dateOfBirth, 
+      products, 
+      nationality, 
+      documents, 
+      securityLevel,
+      userId: userIdNumber,
+      accountStatus,
+      uniqueId
+    } = formData
     
-    // Extract auth-related properties to update in Auth
-    const authUpdates: any = {}
-    if (formData.email) authUpdates.email = formData.email
-    if (formData.phoneNumber) authUpdates.phoneNumber = formData.phoneNumber
-    if (formData.password && formData.password.length >= 6) authUpdates.password = formData.password
-    
-    // Update Auth if needed
-    if (Object.keys(authUpdates).length > 0) {
-      try {
-        await adminAuth.updateUser(userId, authUpdates)
-        console.log('Updated auth for user:', userId)
-      } catch (authError) {
-        console.error('Error updating auth:', authError)
-        // Continue with Firestore update anyway
+    // If uniqueId is provided, check for duplicates
+    if (uniqueId && uniqueId !== 'N/A') {
+      // Query for users with this uniqueId
+      const uniqueIdQuery = await adminDb.collection('users')
+        .where('uniqueId', '==', uniqueId)
+        .get()
+      
+      // Check if any other user has this uniqueId
+      const isDuplicate = uniqueIdQuery.docs.some(doc => doc.id !== userId && doc.data().uniqueId === uniqueId)
+      
+      if (isDuplicate) {
+        return NextResponse.json({ 
+          error: 'Unique ID is already in use by another user' 
+        }, { status: 400 })
       }
     }
     
-    // Prepare Firestore updates (excluding password)
-    const firestoreUpdates = {...formData}
-    delete firestoreUpdates.password
-    
-    // Add admin metadata
-    firestoreUpdates.updatedByAdmin = true
-    firestoreUpdates.updatedAt = new Date().toISOString()
-    
-    // Update Firestore
-    await adminDb.collection('users').doc(userId).update(firestoreUpdates)
-    console.log('Updated Firestore for user:', userId)
+    // Update user in Firestore
+    await adminDb.collection('users').doc(userId).update({
+      fullName,
+      phoneNumber,
+      accountAgent,
+      dateOfBirth,
+      products,
+      nationality,
+      documents,
+      securityLevel,
+      userId: userIdNumber,
+      accountStatus,
+      uniqueId: uniqueId === 'N/A' ? null : uniqueId,
+      updatedByAdmin: true,
+      updatedAt: new Date().toISOString()
+    })
     
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -205,8 +205,9 @@ export default function AdminPanel() {
     setPasswordSuccess('')
     setPasswordError('')
     
-    // Ensure all fields are initialized
+    // Ensure all fields are initialized - include the ID directly in the form data
     setEditFormData({
+      id: user.id, // Store the ID directly in the form data
       fullName: user.fullName || '',
       email: user.email || '',
       phoneNumber: user.phoneNumber || '',
@@ -230,20 +231,56 @@ export default function AdminPanel() {
     setEditFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  const handleEditFormSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-    setSuccess('')
+  // Add this function to check if a unique ID is already in use
+  const checkUniqueIdAvailability = async (uniqueId: string, userId: string) => {
+    try {
+      const response = await fetch(`/api/admin/check-unique-id?id=${encodeURIComponent(uniqueId)}&userId=${userId}`);
+      const data = await response.json();
+      return data.available;
+    } catch (error) {
+      console.error('Error checking unique ID:', error);
+      return false; // Assume it's not available on error to be safe
+    }
+  };
+
+  // Modify your form submission function to include this check
+  const handleEditFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    // Add null check to prevent errors
-    if (!editingUser) {
-      setIsSubmitting(false)
-      return
+    // First check if we have the user ID
+    if (!editFormData.id) {
+      setError('User ID is missing. Please try reopening the edit form.');
+      console.error('Missing user ID in form data', editFormData);
+      return;
     }
     
+    // Check if the uniqueId field exists and has a value
+    if (editFormData.uniqueId) {
+      // Check if the unique ID is available
+      const isAvailable = await checkUniqueIdAvailability(
+        editFormData.uniqueId, 
+        editFormData.id // Use ID from form data
+      );
+      
+      if (!isAvailable) {
+        setError(`The unique ID "${editFormData.uniqueId}" is already in use by another user.`);
+        return; // Prevent form submission
+      }
+    }
+    
+    // Rest of your form submission code
     try {
+      setIsSubmitting(true)
+      setSuccess('')
+      setError('') // Clear any previous errors
+      
+      console.log('Submitting form with data:', { 
+        userId: editFormData.id,
+        formData: { ...editFormData }
+      });
+      
       // Check if email is being updated
-      if (editFormData.email !== editingUser.email) {
+      if (editFormData.email !== editingUser?.email) {
         // If email is being changed, use the dedicated email update endpoint
         const emailUpdateResponse = await fetch('/api/admin/update-email', {
           method: 'POST',
@@ -251,7 +288,7 @@ export default function AdminPanel() {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            uid: editingUser.id,
+            uid: editFormData.id, // Use ID from form data
             newEmail: editFormData.email,
           }),
         });
@@ -274,7 +311,7 @@ export default function AdminPanel() {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            uid: editingUser.id,
+            uid: editFormData.id, // Use ID from form data
             newPassword: editFormData.password
           }),
         });
@@ -289,29 +326,39 @@ export default function AdminPanel() {
         setPasswordSuccess('Password updated successfully');
       }
       
-      // Use the API to update user data
-      const userUpdateResponse = await fetch('/api/admin/update-user', {
+      // Now update the user data in Firestore
+      const response = await fetch('/api/admin/update-user-properties', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          uid: editingUser.id,
-          updates: editFormData
+          userId: editFormData.id, // Use ID from form data
+          formData: { 
+            ...editFormData,
+            // Exclude fields that are handled separately
+            password: undefined
+          }
         }),
       });
       
-      if (!userUpdateResponse.ok) {
-        const errorData = await userUpdateResponse.json();
-        throw new Error(errorData.error || 'Failed to update user data');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update user');
       }
       
+      // Refresh the user list
+      fetchUsers();
+      
+      // Show success message & close modal
       setSuccess('User updated successfully');
-      setShowEditModal(false);
-      fetchUsers(); // Refresh user list
+      setTimeout(() => {
+        setShowEditModal(false);
+      }, 1500);
+      
     } catch (error) {
       console.error('Error updating user:', error);
-      setError('Failed to update user: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      setError(error instanceof Error ? error.message : 'Failed to update user');
     } finally {
       setIsSubmitting(false);
     }
@@ -380,6 +427,31 @@ export default function AdminPanel() {
   const handleViewUser = (userId: string) => {
     router.push(`/admin/users/${userId}`)
   }
+
+  // Add this helper function at the top of your component
+  const formatValue = (value: any): string => {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    
+    // Handle Firestore timestamps
+    if (typeof value === 'object' && value !== null) {
+      // Check if it's a Firestore timestamp
+      if (value._seconds !== undefined && value._nanoseconds !== undefined) {
+        // Convert to JavaScript Date
+        return new Date(value._seconds * 1000).toLocaleString();
+      }
+      
+      // Handle other objects by converting to JSON
+      try {
+        return JSON.stringify(value);
+      } catch (e) {
+        return '[Object]';
+      }
+    }
+    
+    return String(value);
+  };
 
   // Instead of directly returning the admin panel, now we check auth first
   if (!isAuthenticated) {
@@ -555,7 +627,7 @@ export default function AdminPanel() {
                       {user.phoneNumber || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                      {user.registrationDate || 'N/A'}
+                      {formatValue(user.registrationDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
