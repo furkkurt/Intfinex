@@ -13,10 +13,10 @@ export async function POST(request: Request) {
       await adminDb.runTransaction(async (transaction) => {
         const counterDoc = await transaction.get(counterRef);
         if (counterDoc.exists) {
-          userId = String(counterDoc.data()?.count || 10000);
+          userId = String("N/A");
           transaction.update(counterRef, { count: FieldValue.increment(1) });
         } else {
-          userId = '10000';
+          userId = 'N/A';
           transaction.set(counterRef, { count: 10001 });
         }
       });
@@ -37,13 +37,14 @@ export async function POST(request: Request) {
       emailVerified: false,
       phoneVerified: false,
       emailAndSmsVerified: false,
-      accountStatus: 'BASIC',
+      accountStatus: 'N/A',
       products: 'Information',
-      nationality: 'N/A',
+      service: 'N/A',
       dateOfBirth: 'N/A',
       uniqueId: 'N/A',
       documents: 'N/A',
       accountAgent: 'N/A',
+      securityLevel: 'Password',
       registrationDate: new Date().toISOString().split('T')[0]
     });
     

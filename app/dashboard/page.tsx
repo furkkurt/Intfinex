@@ -21,6 +21,7 @@ interface UserDetails {
   nationality: string
   accountStatus: string
   uniqueId: string
+  service: string
 }
 
 function Dashboard() {
@@ -93,7 +94,8 @@ function Dashboard() {
               securityLevel: data.securityLevel,
               nationality: data.nationality,
               accountStatus: data.accountStatus,
-              uniqueId: data.uniqueId || 'N/A'
+              uniqueId: data.uniqueId || 'N/A',
+              service: data.service
             })
           }
         })
@@ -303,16 +305,20 @@ function Dashboard() {
                   <p className="text-white text-lg">{userDetails.accountAgent}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400">Date of Birth / Incorporate</p>
-                  <p className="text-white text-lg">{userDetails.dateOfBirth}</p>
+                  <p className="text-gray-400">Name</p>
+                  <p className="text-white text-lg">{userDetails.displayName}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400">Products</p>
-                  <p className="text-white text-lg">{userDetails.products}</p>
+                  <p className="text-gray-400">Account Status</p>
+                  <p className="text-white text-lg">{userDetails.accountStatus}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400">Nationality / Based</p>
-                  <p className="text-white text-lg">{userDetails.nationality}</p>
+                  <p className="text-gray-400">Phone Number</p>
+                  <p className="text-white text-lg">{userDetails.phoneNumber}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400">Services</p>
+                  <p className="text-white text-lg">{userDetails.service}</p>
                 </div>
                 <div>
                   <p className="text-gray-400">Email</p>
@@ -320,29 +326,15 @@ function Dashboard() {
                 </div>
                 <div>
                   <p className="text-gray-400">Registration Date</p>
-                  <p className="text-white text-lg">{new Date(userDetails.registrationDate).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400">Phone Number</p>
-                  <p className="text-white text-lg">{userDetails.phoneNumber}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400">Documents</p>
-                  <p className="text-white text-lg">{userDetails.documents}</p>
+                  <p className="text-white text-lg">{userDetails.registrationDate}</p>
                 </div>
                 <div>
                   <p className="text-gray-400">Security Level</p>
                   <p className="text-white text-lg">{userDetails.securityLevel}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400">Account Status</p>
-                  <p className={`text-white text-lg ${userDetails.accountStatus === 'PREMIUM' ? 'text-green-500' : 'text-yellow-500'}`}>
-                    {userDetails.accountStatus === 'PREMIUM' ? 'Premium' : 'Basic'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-gray-400">ID Number</p>
-                  <p className="text-white text-lg">{userDetails.uniqueId}</p>
+                  <p className="text-gray-400">Documents</p>
+                  <p className="text-white text-lg">{userDetails.documents}</p>
                 </div>
               </div>
             )}

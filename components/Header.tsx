@@ -48,6 +48,7 @@ export default function Header() {
       <nav className="max-w-6xl mx-auto px-4 py-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-8">
+            <img src="/logo2.png" alt="Intfinex" className="w-16 h-16 opacity-100" />
             <Link href="/" className="text-white font-bold text-xl">
               Intfinex
             </Link>

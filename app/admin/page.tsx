@@ -20,7 +20,6 @@ interface User {
   registrationDate: string
   documents: string
   securityLevel: string
-  nationality: string
   [key: string]: any // For other fields
 }
 
@@ -214,7 +213,6 @@ export default function AdminPanel() {
       accountAgent: user.accountAgent || 'N/A',
       dateOfBirth: user.dateOfBirth || 'N/A',
       products: user.products || 'Information',
-      nationality: user.nationality || 'N/A',
       documents: user.documents || 'N/A',
       securityLevel: user.securityLevel || 'Password',
       userId: user.userId || 10000,
@@ -638,9 +636,6 @@ export default function AdminPanel() {
                         {user.accountStatus === 'PREMIUM' ? 'Premium' : 'Basic'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                      {user.uniqueId || 'N/A'}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm flex space-x-2">
                       <button
                         onClick={() => openEditModal(user)}
@@ -748,59 +743,7 @@ export default function AdminPanel() {
                     className="w-full bg-[#222] border-gray-700 rounded-lg shadow-sm focus:ring-[#00ffd5] focus:border-[#00ffd5] text-white px-3 py-2"
                   />
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Date of Birth
-                  </label>
-                  <input
-                    type="text"
-                    name="dateOfBirth"
-                    value={editFormData.dateOfBirth || ''}
-                    onChange={handleEditInputChange}
-                    className="w-full bg-[#222] border-gray-700 rounded-lg shadow-sm focus:ring-[#00ffd5] focus:border-[#00ffd5] text-white px-3 py-2"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Products
-                  </label>
-                  <input
-                    type="text"
-                    name="products"
-                    value={editFormData.products || ''}
-                    onChange={handleEditInputChange}
-                    className="w-full bg-[#222] border-gray-700 rounded-lg shadow-sm focus:ring-[#00ffd5] focus:border-[#00ffd5] text-white px-3 py-2"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Nationality
-                  </label>
-                  <input
-                    type="text"
-                    name="nationality"
-                    value={editFormData.nationality || ''}
-                    onChange={handleEditInputChange}
-                    className="w-full bg-[#222] border-gray-700 rounded-lg shadow-sm focus:ring-[#00ffd5] focus:border-[#00ffd5] text-white px-3 py-2"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Documents
-                  </label>
-                  <input
-                    type="text"
-                    name="documents"
-                    value={editFormData.documents || ''}
-                    onChange={handleEditInputChange}
-                    className="w-full bg-[#222] border-gray-700 rounded-lg shadow-sm focus:ring-[#00ffd5] focus:border-[#00ffd5] text-white px-3 py-2"
-                  />
-                </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
                     Security Level
@@ -828,20 +771,7 @@ export default function AdminPanel() {
                     <option value="PREMIUM">Premium</option>
                   </select>
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Unique ID
-                  </label>
-                  <input
-                    type="text"
-                    name="uniqueId"
-                    value={editFormData.uniqueId || ''}
-                    onChange={handleEditInputChange}
-                    className="w-full bg-[#222] border-gray-700 rounded-lg shadow-sm focus:ring-[#00ffd5] focus:border-[#00ffd5] text-white px-3 py-2"
-                  />
-                </div>
-                
+               
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
                     Password (leave empty to keep current)
